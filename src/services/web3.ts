@@ -14,6 +14,12 @@ export const BSC_PARAMS = {
   blockExplorerUrls: ['https://bscscan.com/'],
 };
 
+const CHAINLINK_FEED_ABI = [
+  "function decimals() external view returns (uint8)",
+  "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)"
+];
+const CHAINLINK_BNB_USD_ADDRESS = "0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE";
+
 let lastKnownBNBPrice = 750;
 
 export async function fetchLiveBNBPrice(): Promise<number> {
@@ -31,6 +37,35 @@ export async function fetchLiveBNBPrice(): Promise<number> {
   };
 
   const sources: Array<() => Promise<number>> = [
+    // 0. On-chain Chainlink Oracle via user's connected Web3 wallet (falling back to public RPC)
+    async () => {
+      let provider: ethers.Provider | null = null;
+      if (typeof window !== 'undefined' && (window as any).ethereum) {
+        try {
+          provider = new ethers.BrowserProvider((window as any).ethereum);
+        } catch {
+          // Fallback to public RPC
+        }
+      }
+      if (!provider) {
+        provider = getPublicBscProvider();
+      }
+      
+      const contract = new ethers.Contract(CHAINLINK_BNB_USD_ADDRESS, CHAINLINK_FEED_ABI, provider);
+      // Impose a timeout of 4 seconds on the on-chain query to keep UI snappy
+      const onChainData = await Promise.race([
+        Promise.all([contract.decimals(), contract.latestRoundData()]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000))
+      ]);
+      
+      const decimals = Number(onChainData[0]);
+      const latestRoundData = onChainData[1];
+      const price = Number(latestRoundData.answer) / Math.pow(10, decimals);
+      if (price > 0 && !isNaN(price)) {
+        return price;
+      }
+      throw new Error("Invalid on-chain price");
+    },
     // 1. Binance US ticker (open CORS, fast)
     async () => {
       const res = await fetchWithTimeout('https://api.binance.us/api/v3/ticker/price?symbol=BNBUSDT');
