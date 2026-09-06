@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserProfile, TierInfo } from '../types';
+import { UserProfile, TierInfo, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, CheckCircle2, ArrowUpRight, Loader2, Sparkles } from 'lucide-react';
 import { sendBNBTransaction } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
@@ -14,15 +14,6 @@ interface TiersViewProps {
   onUpdateUser: (updated: Partial<UserProfile>) => void;
 }
 
-const TIERS: TierInfo[] = [
-  { tier: 1, name: 'Tier 1 Miner', pointsPerDay: 500, upgradeCostUSD: 0, multiplier: '1x' },
-  { tier: 2, name: 'Tier 2 Pro Rig', pointsPerDay: 1000, upgradeCostUSD: 1.00, multiplier: '2x' },
-  { tier: 3, name: 'Tier 3 Elite Cluster', pointsPerDay: 2000, upgradeCostUSD: 1.00, multiplier: '4x' },
-  { tier: 4, name: 'Tier 4 Quantum ASIC', pointsPerDay: 4000, upgradeCostUSD: 1.00, multiplier: '8x' },
-  { tier: 5, name: 'Tier 5 Binance Titan', pointsPerDay: 8000, upgradeCostUSD: 1.00, multiplier: '16x' },
-  { tier: 6, name: 'Tier 6 Sovereign Node', pointsPerDay: 16000, upgradeCostUSD: 1.00, multiplier: '32x' },
-];
-
 export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUser }) => {
   const [upgradingTier, setUpgradingTier] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -30,7 +21,9 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
 
   const handleUpgrade = async (targetTier: number) => {
     setMessage(null);
-    const targetTierInfo = TIERS.find((t) => t.tier === targetTier);
+    const targetTierInfo = ALL_TIERS.find((t) => t.tier === targetTier);
+
+    if (!targetTierInfo) return;
 
     if (targetTier !== user.currentTier + 1) {
       const err = 'You must upgrade tiers sequentially.';
@@ -60,6 +53,8 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
       return;
     }
 
+    const costUSD = targetTierInfo.upgradeCostUSD;
+
     try {
       setUpgradingTier(targetTier);
       let signer: ethers.Signer | null = null;
@@ -72,15 +67,15 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         }
       }
 
-      // $1 USD upgrade fee sent to Treasury Wallet
-      const { txHash } = await sendBNBTransaction(signer, 1.00, bnbPrice);
-      const bnbAmount = Number((1.00 / (bnbPrice || 600)).toFixed(5));
+      // Dynamic USD upgrade fee sent to Treasury Wallet
+      const { txHash } = await sendBNBTransaction(signer, costUSD, bnbPrice);
+      const bnbAmount = Number((costUSD / (bnbPrice || 600)).toFixed(5));
 
       // Record transaction in audit history
       await addTransactionRecord(user.email || user.walletAddress, {
         type: 'UPGRADE',
         amountBNB: bnbAmount,
-        amountUSD: 1.00,
+        amountUSD: costUSD,
         txHash: txHash,
         status: 'SUCCESS',
       });
@@ -110,7 +105,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         txHash: txHash,
         details: [
           { label: 'Upgraded Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
-          { label: 'Upgrade Cost', value: `$1.00 USD (${bnbAmount} BNB)` },
+          { label: 'Upgrade Cost', value: `$${costUSD.toFixed(2)} USD (${bnbAmount} BNB)` },
           { label: 'New Daily Yield', value: `${targetTierInfo?.pointsPerDay.toLocaleString()} PTS/day` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
         ],
@@ -133,7 +128,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         onAction: () => handleUpgrade(targetTier),
         details: [
           { label: 'Target Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
-          { label: 'Required Fee', value: `$1.00 USD (${(1.00 / bnbPrice).toFixed(5)} BNB)` },
+          { label: 'Required Fee', value: `$${costUSD.toFixed(2)} USD (${(costUSD / bnbPrice).toFixed(5)} BNB)` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
         ],
       });
@@ -155,7 +150,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
           Upgrade Mining Power
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Each tier upgrade costs exactly <strong className="text-amber-400">$1.00 USD</strong> in BNB and doubles your daily point output permanently.
+          Upgrade your mining tier sequentially up to <strong className="text-amber-400">Tier 20</strong> to dramatically boost your daily points output.
         </p>
       </div>
 
@@ -184,11 +179,11 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
 
       {/* Tiers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {TIERS.map((t) => {
+        {ALL_TIERS.map((t) => {
           const isCurrent = user.currentTier === t.tier;
           const isUnlocked = user.currentTier >= t.tier;
           const isNext = t.tier === user.currentTier + 1;
-          const costInBNB = 1.00 / bnbPrice;
+          const costInBNB = t.upgradeCostUSD / bnbPrice;
 
           return (
             <div
@@ -222,6 +217,10 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
 
                 <div className="space-y-2 border-t border-white/10 pt-4 text-xs text-slate-300">
                   <div className="flex justify-between">
+                    <span>Weekly Yield:</span>
+                    <strong className="text-[#00C087] font-bold font-mono">${t.weeklyYieldUSD.toFixed(2)} USD / week</strong>
+                  </div>
+                  <div className="flex justify-between">
                     <span>Upgrade Fee:</span>
                     <span className="font-mono text-white">{t.upgradeCostUSD === 0 ? 'FREE (Start)' : `$${t.upgradeCostUSD.toFixed(2)} USD`}</span>
                   </div>
@@ -249,11 +248,11 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
                     {upgradingTier === t.tier ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Signing on BSC ($1)...</span>
+                        <span>Signing on BSC (${t.upgradeCostUSD.toFixed(2)})...</span>
                       </>
                     ) : (
                       <>
-                        <span>Upgrade Now ($1.00)</span>
+                        <span>Upgrade Now (${t.upgradeCostUSD.toFixed(2)})</span>
                         <ArrowUpRight className="w-4 h-4" />
                       </>
                     )}

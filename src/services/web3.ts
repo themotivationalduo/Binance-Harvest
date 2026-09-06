@@ -334,3 +334,104 @@ export async function sendBNBTransaction(
     throw new Error(err?.reason || err?.message || "Failed to broadcast transaction to Binance Smart Chain.");
   }
 }
+
+// PancakeSwap V2 and USDT Addresses on Binance Smart Chain
+export const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+export const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
+export const PANCAKE_ROUTER_ADDRESS = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 value) returns (bool)",
+  "function decimals() view returns (uint8)"
+];
+
+const PANCAKE_ROUTER_ABI = [
+  "function getAmountsOut(uint amountIn, address[] calldata path) view returns (uint[] memory amounts)",
+  "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external"
+];
+
+export async function getUSDTBalance(address: string): Promise<string> {
+  if (!address || !ethers.isAddress(address)) return "0.00";
+  try {
+    const provider = getPublicBscProvider();
+    const contract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+    const balance = await contract.balanceOf(address);
+    return Number(ethers.formatUnits(balance, 18)).toFixed(2);
+  } catch (e) {
+    console.warn("Could not query USDT balance:", e);
+    return "0.00";
+  }
+}
+
+export async function getSwapQuote(usdtAmountStr: string, bnbPrice: number): Promise<{ bnbAmount: string; rate: string }> {
+  try {
+    const provider = getPublicBscProvider();
+    const router = new ethers.Contract(PANCAKE_ROUTER_ADDRESS, PANCAKE_ROUTER_ABI, provider);
+    const amountIn = ethers.parseUnits(usdtAmountStr, 18);
+    const path = [USDT_ADDRESS, WBNB_ADDRESS];
+    const amounts = await router.getAmountsOut(amountIn, path);
+    const bnbOut = ethers.formatEther(amounts[1]);
+    const rate = (Number(usdtAmountStr) / Number(bnbOut)).toFixed(2);
+    return {
+      bnbAmount: Number(bnbOut).toFixed(6),
+      rate
+    };
+  } catch (err) {
+    console.warn("Could not fetch swap quote from PancakeSwap, falling back to oracle rate:", err);
+    const bnbOut = Number(usdtAmountStr) / (bnbPrice || 600);
+    return {
+      bnbAmount: bnbOut.toFixed(6),
+      rate: (bnbPrice || 600).toFixed(2)
+    };
+  }
+}
+
+export async function executeUSDTtoBNBSwap(
+  signer: ethers.Signer,
+  usdtAmountStr: string,
+  minBnbOutStr: string
+): Promise<string> {
+  const userAddress = await signer.getAddress();
+  const provider = signer.provider;
+  if (!provider) throw new Error("No provider found on signer");
+
+  const usdtContract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+  const routerContract = new ethers.Contract(PANCAKE_ROUTER_ADDRESS, PANCAKE_ROUTER_ABI, signer);
+
+  const amountIn = ethers.parseUnits(usdtAmountStr, 18);
+  const minAmountOut = ethers.parseUnits(minBnbOutStr, 18);
+
+  // Check USDT balance
+  const balance: bigint = await usdtContract.balanceOf(userAddress);
+  if (balance < amountIn) {
+    throw new Error(`Insufficient USDT balance. You have ${ethers.formatUnits(balance, 18)} USDT but need ${usdtAmountStr} USDT.`);
+  }
+
+  // Check Allowance
+  const currentAllowance: bigint = await usdtContract.allowance(userAddress, PANCAKE_ROUTER_ADDRESS);
+  if (currentAllowance < amountIn) {
+    console.log("Approving USDT for PancakeSwap Router...");
+    const approveTx = await usdtContract.approve(PANCAKE_ROUTER_ADDRESS, ethers.MaxUint256);
+    await approveTx.wait(1);
+    console.log("USDT approved successfully!");
+  }
+
+  // Swap
+  const path = [USDT_ADDRESS, WBNB_ADDRESS];
+  const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 mins deadline
+
+  console.log("Executing SwapExactTokensForETHSupportingFeeOnTransferTokens...");
+  const swapTx = await routerContract.swapExactTokensForETHSupportingFeeOnTransferTokens(
+    amountIn,
+    minAmountOut * 95n / 100n, // 5% slippage tolerance
+    path,
+    userAddress,
+    deadline
+  );
+
+  const receipt = await swapTx.wait(1);
+  return receipt?.hash || swapTx.hash;
+}
+
