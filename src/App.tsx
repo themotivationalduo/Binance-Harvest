@@ -115,6 +115,22 @@ export default function App() {
           setWalletAddress(null);
           localStorage.removeItem('binance_harvest_active_wallet');
           setWalletBalance('0.0000');
+          setUser({
+            walletAddress: '',
+            currentTier: 1,
+            totalPoints: 0,
+            miningBalanceBNB: 0,
+            lastClaimDate: new Date().toISOString().split('T')[0],
+            withdrawalStatus: 'NOT_STARTED',
+            treasuryWalletAddress: TREASURY_WALLET,
+            isVerified: false,
+            loginStreak: 0,
+            lastStreakClaimDate: '',
+            totalStreakPointsClaimed: 0,
+            createdAt: new Date().toISOString(),
+          });
+          setActiveTab('dashboard');
+          setShowAuthModal(true);
         }
       };
 
@@ -180,11 +196,27 @@ export default function App() {
     setWalletAddress(null);
     setWalletBalance('0.0000');
     localStorage.removeItem('binance_harvest_active_wallet');
+    setUser({
+      walletAddress: '',
+      currentTier: 1,
+      totalPoints: 0,
+      miningBalanceBNB: 0,
+      lastClaimDate: new Date().toISOString().split('T')[0],
+      withdrawalStatus: 'NOT_STARTED',
+      treasuryWalletAddress: TREASURY_WALLET,
+      isVerified: false,
+      loginStreak: 0,
+      lastStreakClaimDate: '',
+      totalStreakPointsClaimed: 0,
+      createdAt: new Date().toISOString(),
+    });
+    setActiveTab('dashboard');
+    setShowAuthModal(true);
 
     showSuccess({
       initiativeName: 'Web3 Wallet Session',
       title: 'Wallet Disconnected',
-      description: 'Your Web3 wallet has been safely disconnected from this session.',
+      description: 'Your Web3 wallet has been safely disconnected from this session and you have been returned to the authentication page.',
     });
   };
 
