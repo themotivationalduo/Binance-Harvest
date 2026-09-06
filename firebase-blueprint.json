@@ -14,6 +14,9 @@
         "withdrawalStatus": { "type": "string" },
         "treasuryWalletAddress": { "type": "string" },
         "isVerified": { "type": "boolean" },
+        "loginStreak": { "type": "number" },
+        "lastStreakClaimDate": { "type": "string" },
+        "totalStreakPointsClaimed": { "type": "number" },
         "createdAt": { "type": "string" }
       },
       "required": ["email", "currentTier", "totalPoints"]

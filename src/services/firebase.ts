@@ -64,7 +64,13 @@ export async function getUserProfile(identifier: string): Promise<UserProfile> {
       const docRef = doc(db, "users", normalizedKey);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        return snap.data() as UserProfile;
+        const data = snap.data() as UserProfile;
+        return {
+          ...data,
+          loginStreak: data.loginStreak ?? 0,
+          lastStreakClaimDate: data.lastStreakClaimDate ?? '',
+          totalStreakPointsClaimed: data.totalStreakPointsClaimed ?? 0,
+        };
       }
     } catch (e) {
       console.warn("Firestore fetch failed, falling back to localStorage:", e);
@@ -76,6 +82,9 @@ export async function getUserProfile(identifier: string): Promise<UserProfile> {
   if (localData) {
     const profile = JSON.parse(localData) as UserProfile;
     profile.treasuryWalletAddress = TREASURY_WALLET;
+    profile.loginStreak = profile.loginStreak ?? 0;
+    profile.lastStreakClaimDate = profile.lastStreakClaimDate ?? '';
+    profile.totalStreakPointsClaimed = profile.totalStreakPointsClaimed ?? 0;
     return profile;
   }
 
@@ -90,6 +99,9 @@ export async function getUserProfile(identifier: string): Promise<UserProfile> {
     withdrawalStatus: 'NOT_STARTED',
     treasuryWalletAddress: TREASURY_WALLET,
     isVerified: false,
+    loginStreak: 0,
+    lastStreakClaimDate: '',
+    totalStreakPointsClaimed: 0,
     createdAt: new Date().toISOString(),
   };
 

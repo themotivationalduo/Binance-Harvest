@@ -35,6 +35,9 @@ export default function App() {
     withdrawalStatus: 'NOT_STARTED',
     treasuryWalletAddress: TREASURY_WALLET,
     isVerified: false,
+    loginStreak: 0,
+    lastStreakClaimDate: '',
+    totalStreakPointsClaimed: 0,
     createdAt: new Date().toISOString(),
   });
 

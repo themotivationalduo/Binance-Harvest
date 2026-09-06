@@ -8,6 +8,9 @@ export interface UserProfile {
   withdrawalStatus: 'NOT_STARTED' | 'PENDING_ADMIN_APPROVAL' | 'APPROVED';
   treasuryWalletAddress: string;
   isVerified: boolean;
+  loginStreak: number;
+  lastStreakClaimDate: string;
+  totalStreakPointsClaimed: number;
   createdAt: string;
 }
 

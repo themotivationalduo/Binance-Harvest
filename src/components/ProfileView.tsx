@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw } from 'lucide-react';
+import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw, Flame, Sparkles } from 'lucide-react';
 import { switchToBSC, TREASURY_WALLET } from '../services/web3';
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
@@ -160,6 +160,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
             <div className="text-xs text-slate-400 mb-1">Account Created</div>
             <div className="font-mono text-white">{new Date(user.createdAt).toLocaleDateString()}</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>Consecutive Login Streak</span>
+            </div>
+            <div className="font-mono text-[#F3BA2F] font-bold text-base">
+              {user.loginStreak || 0} Day{(user.loginStreak || 0) === 1 ? '' : 's'}
+            </div>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#00C087]" />
+              <span>Total Streak Bonus Claimed</span>
+            </div>
+            <div className="font-mono text-[#00C087] font-bold text-base">
+              +{(user.totalStreakPointsClaimed || 0).toLocaleString()} PTS
+            </div>
           </div>
         </div>
       </div>

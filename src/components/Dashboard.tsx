@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X } from 'lucide-react';
+import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame } from 'lucide-react';
 import { sendBNBTransaction, TREASURY_WALLET } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { DailyLoginStreak } from './DailyLoginStreak';
 
 interface DashboardProps {
   user: UserProfile;
@@ -261,6 +262,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <p className="text-slate-300">Daily: <strong className="text-[#F3BA2F]">{dailyPoints.toLocaleString()} PTS</strong></p>
             </div>
           </div>
+
+          <div className="bg-[#1E2329] p-4 rounded-lg border border-[rgba(255,255,255,0.08)]">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] uppercase tracking-wider text-[#848E9C]">Daily Streak</p>
+              <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+                <Flame className="w-3.5 h-3.5 fill-amber-400" />
+                {user.loginStreak || 0} Day{(user.loginStreak || 0) === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400">Total Bonus:</span>
+              <strong className="text-[#F3BA2F] mono">+{(user.totalStreakPointsClaimed || 0).toLocaleString()} PTS</strong>
+            </div>
+          </div>
         </div>
 
         <div className="bg-[#181A20] p-4 rounded-lg text-center border border-[rgba(255,255,255,0.08)]">
@@ -364,6 +379,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Daily Login Streak Component (Firestore-backed) */}
+        <DailyLoginStreak user={user} onUpdateUser={onUpdateUser} />
 
         {/* Verification & Withdrawal Box */}
         <div className="bg-[#0B0E11] rounded-xl p-6 lg:p-8 border border-[#F3BA2F]/20 relative overflow-hidden">
