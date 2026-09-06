@@ -27,6 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRateModal, setShowRateModal] = useState(false);
   const { showSuccess, showFailed } = useInitiativeFeedback();
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   // Calculations
   const dailyPoints = 500 * Math.pow(2, user.currentTier - 1);
@@ -38,30 +39,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const verificationFeeUSD = 5.00;
   const isThresholdMet = usdValue >= withdrawalThresholdUSD;
 
+  // Track miner live progress
+  React.useEffect(() => {
+    const startTime = new Date(user.minerStartTimestamp || user.createdAt).getTime();
+    setElapsedMs(Math.max(0, Date.now() - startTime));
+    
+    const interval = setInterval(() => {
+      setElapsedMs(Math.max(0, Date.now() - startTime));
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [user.minerStartTimestamp, user.createdAt]);
+
+  const minerCycleDurationMs = 24 * 60 * 60 * 1000;
+  const isMinerEnded = elapsedMs >= minerCycleDurationMs;
+  const effectiveElapsed = Math.min(elapsedMs, minerCycleDurationMs);
+  const accumulatedPoints = (effectiveElapsed / minerCycleDurationMs) * dailyPoints;
+
   // Claim points action
   const handleClaimPoints = () => {
+    if (!isMinerEnded) return;
+
     setIsMining(true);
     setTimeout(() => {
-      const earned = Math.round(dailyPoints * 0.25); // claim portion or daily reward
+      const earned = accumulatedPoints;
       const newTotal = user.totalPoints + earned;
+      const now = new Date().toISOString();
+      
       onUpdateUser({
         totalPoints: newTotal,
         miningBalanceBNB: (newTotal / 1000) * (0.50 / bnbPrice),
-        lastClaimDate: new Date().toISOString().split('T')[0],
+        lastClaimDate: now.split('T')[0],
+        minerStartTimestamp: now,
       });
+      
       setIsMining(false);
-      setSuccessMessage(`Successfully harvested +${earned} points to your mining balance!`);
+      setSuccessMessage(`Successfully harvested +${earned.toFixed(7)} points to your mining balance!`);
       setTimeout(() => setSuccessMessage(null), 4000);
 
       // Trigger glorious Success Animation
       showSuccess({
         initiativeName: 'Cloud Hash Harvest',
         title: 'Mining Yield Harvested!',
-        badge: `+${earned.toLocaleString()} PTS`,
-        description: `Successfully collected ${earned.toLocaleString()} mined points from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
+        badge: `+${earned.toLocaleString(undefined, { maximumFractionDigits: 7 })} PTS`,
+        description: `Successfully collected ${earned.toLocaleString(undefined, { maximumFractionDigits: 2 })} mined points from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
         details: [
           { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyPoints.toLocaleString()} PTS/day)` },
-          { label: 'Total Balance', value: `${newTotal.toLocaleString()} PTS` },
+          { label: 'Total Balance', value: `${newTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} PTS` },
           { label: 'Estimated Value', value: `≈ $${((newTotal / 1000) * 0.50).toFixed(2)} USD` },
         ],
       });
@@ -171,6 +195,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const verificationFeeBNB = (verificationFeeUSD / bnbPrice).toFixed(4);
 
+  // Next Tier Progress calculation
+  const nextTierThresholds = [0, 2000, 6000, 14000, 30000, 60000, 0];
+  const isMaxTier = user.currentTier >= 6;
+  const nextTierPointsRequired = nextTierThresholds[user.currentTier] || 0;
+  const pointsRemaining = isMaxTier ? 0 : Math.max(0, nextTierPointsRequired - user.totalPoints);
+  const tierProgressPercent = isMaxTier ? 100 : Math.min(100, (user.totalPoints / nextTierPointsRequired) * 100);
+
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] bg-[#0B0E11] text-[#EAECEF] pb-28">
       
@@ -241,12 +272,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {user.currentTier === 1 ? 'NOVICE' : `PRO RIG T${user.currentTier}`}
               </span>
             </div>
-            <p className="text-xs text-[#848E9C] mb-3">Mining Power: {dailyPoints.toLocaleString()} PTS / Day</p>
+            <p className="text-xs text-[#848E9C] mb-4">Mining Power: {dailyPoints.toLocaleString()} PTS / Day</p>
+            
+            {/* Tier Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between items-end mb-1.5">
+                <span className="text-[10px] uppercase tracking-wider text-[#848E9C]">
+                  {isMaxTier ? 'Max Tier Reached' : `Progress to Tier ${user.currentTier + 1}`}
+                </span>
+                {!isMaxTier && (
+                  <span className="text-[10px] font-mono text-[#00C087]">
+                    {tierProgressPercent.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className="h-1.5 w-full bg-[#0B0E11] rounded-full overflow-hidden border border-white/5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${tierProgressPercent}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="h-full bg-gradient-to-r from-[#00C087] to-[#00E5A0] rounded-full relative"
+                >
+                  <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite]" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)' }} />
+                </motion.div>
+              </div>
+              {!isMaxTier && (
+                <p className="text-[10px] text-[#848E9C] mt-1.5 text-right">
+                  <strong className="text-white">{pointsRemaining.toLocaleString()}</strong> more points required
+                </p>
+              )}
+            </div>
+
             <button
               onClick={onNavigateToTiers}
               className="w-full border border-[rgba(255,255,255,0.08)] hover:bg-white/5 py-2 rounded text-xs text-center font-semibold text-[#F3BA2F] transition"
             >
-              Upgrade Tier ($1 BNB)
+              {isMaxTier ? 'Manage Max Rig' : 'Upgrade Tier ($1 BNB)'}
             </button>
           </div>
 
@@ -318,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-[#848E9C] text-xs font-medium uppercase tracking-wider">Real-time Mining Balance</h2>
+              <h2 className="text-[#848E9C] text-xs font-medium uppercase tracking-wider">Total Mining Balance</h2>
               <button onClick={() => setShowRateModal(true)} className="text-[#F3BA2F] hover:underline text-[10px] flex items-center gap-1">
                 <Info className="w-3 h-3" /> Rate Formula
               </button>
@@ -331,27 +392,62 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
+          <div className="flex flex-col items-start md:items-end gap-1">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-[#848E9C] text-[10px] font-medium uppercase tracking-wider">Live Accumulated Points</h2>
+              <motion.div
+                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                className="w-1.5 h-1.5 rounded-full bg-[#00C087]"
+              />
+            </div>
+            <motion.div
+              animate={{ 
+                boxShadow: ["0px 0px 0px 0px rgba(0, 192, 135, 0.1)", "0px 0px 8px 2px rgba(0, 192, 135, 0.3)", "0px 0px 0px 0px rgba(0, 192, 135, 0.1)"]
+              }}
+              transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+              className="flex items-baseline gap-2 bg-[#00C087]/10 px-3 py-1.5 rounded-lg border border-[#00C087]/20"
+            >
+              <span className="text-2xl font-bold mono text-[#00C087]">
+                +{accumulatedPoints.toFixed(7)}
+              </span>
+              <span className="text-xs font-semibold text-[#00C087]/80">PTS</span>
+            </motion.div>
+          </div>
+
           <div className="flex items-center gap-4">
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={isMinerEnded && !isMining ? { scale: 1.03 } : {}}
+              whileTap={isMinerEnded && !isMining ? { scale: 0.96 } : {}}
               onClick={handleClaimPoints}
-              disabled={isMining}
-              className="bg-gradient-to-r from-amber-500 to-[#F3BA2F] text-black text-xs font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-[#F3BA2F]/20 transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              disabled={isMining || !isMinerEnded}
+              className={`text-black text-xs font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                isMinerEnded && !isMining
+                  ? 'bg-gradient-to-r from-amber-500 to-[#F3BA2F] shadow-lg shadow-[#F3BA2F]/20'
+                  : 'bg-[#2B3139] text-[#848E9C] cursor-not-allowed border border-[rgba(255,255,255,0.08)]'
+              }`}
             >
-              {isMining ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Sparkles className="w-4 h-4 text-black" />}
-              <span>Claim Points</span>
+              {isMining ? (
+                <Loader2 className="w-4 h-4 animate-spin text-[#848E9C]" />
+              ) : isMinerEnded ? (
+                <Sparkles className="w-4 h-4 text-black" />
+              ) : (
+                <Clock className="w-4 h-4 text-[#848E9C]" />
+              )}
+              <span className={isMinerEnded ? 'text-black' : 'text-[#848E9C]'}>
+                {isMinerEnded ? 'Claim Points' : `Claim in ${Math.ceil((minerCycleDurationMs - elapsedMs) / (60 * 60 * 1000))}h`}
+              </span>
             </motion.button>
 
             <div className="bg-[#0B0E11] p-3 rounded-lg border border-white/5 flex items-center gap-3">
               <div className="relative flex items-center justify-center">
-                <div className="absolute w-6 h-6 bg-[#00C087]/30 rounded-full animate-ping"></div>
-                <div className="w-3 h-3 bg-[#00C087] rounded-full shadow-[0_0_16px_#00C087] animate-pulse"></div>
+                <div className={`absolute w-6 h-6 rounded-full animate-ping ${isMinerEnded ? 'bg-[#F3BA2F]/30' : 'bg-[#00C087]/30'}`}></div>
+                <div className={`w-3 h-3 rounded-full animate-pulse ${isMinerEnded ? 'bg-[#F3BA2F] shadow-[0_0_16px_#F3BA2F]' : 'bg-[#00C087] shadow-[0_0_16px_#00C087]'}`}></div>
               </div>
               <div className="leading-tight">
-                <p className="text-xs text-[#00C087] font-bold flex items-center gap-1.5">
-                  <span>MINING ACTIVE</span>
-                  <span className="inline-block w-1.5 h-1.5 bg-[#00C087] rounded-full animate-ping"></span>
+                <p className={`text-xs font-bold flex items-center gap-1.5 ${isMinerEnded ? 'text-[#F3BA2F]' : 'text-[#00C087]'}`}>
+                  <span>{isMinerEnded ? 'CYCLE ENDED' : 'MINING ACTIVE'}</span>
+                  {!isMinerEnded && <span className="inline-block w-1.5 h-1.5 bg-[#00C087] rounded-full animate-ping"></span>}
                 </p>
                 <p className="text-[10px] text-[#848E9C]">Tier {user.currentTier} Rate</p>
               </div>

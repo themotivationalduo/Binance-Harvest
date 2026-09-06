@@ -139,6 +139,32 @@ export function isMetaMaskInstalled(): boolean {
   return typeof window !== 'undefined' && Boolean((window as any).ethereum);
 }
 
+export function detectWeb3Providers(): {
+  hasWeb3: boolean;
+  isMetaMask: boolean;
+  isTrust: boolean;
+  isBinance: boolean;
+  isCoinbase: boolean;
+} {
+  if (typeof window === 'undefined') {
+    return { hasWeb3: false, isMetaMask: false, isTrust: false, isBinance: false, isCoinbase: false };
+  }
+  const eth = (window as any).ethereum;
+  return {
+    hasWeb3: Boolean(eth),
+    isMetaMask: Boolean(eth?.isMetaMask),
+    isTrust: Boolean(eth?.isTrust || eth?.isTrustWallet),
+    isBinance: Boolean((window as any).BinanceChain || eth?.isBinance),
+    isCoinbase: Boolean(eth?.isCoinbaseWallet),
+  };
+}
+
+export async function signWeb3AuthMessage(signer: ethers.Signer, address: string): Promise<string> {
+  const timestamp = new Date().toISOString();
+  const challenge = `Welcome to BinanceHarvest Cloud Mining!\n\nSign this cryptographic challenge to authenticate your on-chain miner identity on Binance Smart Chain.\n\nMiner Address: ${address}\nChain ID: 56 (BSC Mainnet)\nTimestamp: ${timestamp}`;
+  return await signer.signMessage(challenge);
+}
+
 export async function connectWallet(): Promise<{
   address: string;
   provider: ethers.BrowserProvider;

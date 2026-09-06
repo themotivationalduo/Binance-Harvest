@@ -15,7 +15,28 @@ import { getUserProfile, updateUserProfileFields } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    const path = window.location.pathname.substring(1);
+    const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
+    return validTabs.includes(path) ? (path as ActiveTab) : 'dashboard';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.substring(1);
+      const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
+      setActiveTab(validTabs.includes(path) ? (path as ActiveTab) : 'dashboard');
+    };
+    window.addEventListener('popstate', handlePopState);
+    
+    // Set initial URL if empty
+    if (window.location.pathname === '/') {
+      window.history.replaceState(null, '', '/dashboard');
+    }
+    
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [bnbPrice, setBnbPrice] = useState<number>(600.00);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string>('0.0000');
@@ -26,7 +47,6 @@ export default function App() {
   
   // Entire user account starts afresh (Tier 1, 0 points)
   const [user, setUser] = useState<UserProfile>({
-    email: 'new_miner@binanceharvest.io',
     walletAddress: '',
     currentTier: 1,
     totalPoints: 0,
@@ -43,11 +63,11 @@ export default function App() {
 
   // Prompt user to register on mount if no session found
   useEffect(() => {
-    const registeredEmail = localStorage.getItem('binance_harvest_email');
-    if (!registeredEmail) {
+    const registeredWallet = localStorage.getItem('binance_harvest_active_wallet');
+    if (!registeredWallet) {
       setShowAuthModal(true);
     } else {
-      getUserProfile(registeredEmail).then((profile) => setUser(profile));
+      getUserProfile(registeredWallet).then((profile) => setUser(profile));
     }
   }, []);
 
@@ -74,7 +94,7 @@ export default function App() {
 
   // Restore saved wallet on mount and listen to provider events
   useEffect(() => {
-    const saved = localStorage.getItem('binance_harvest_wallet');
+    const saved = localStorage.getItem('binance_harvest_active_wallet');
     if (saved) {
       setWalletAddress(saved);
       syncWalletBalance(saved);
@@ -86,13 +106,13 @@ export default function App() {
         if (accounts && accounts.length > 0) {
           const newAddr = accounts[0];
           setWalletAddress(newAddr);
-          localStorage.setItem('binance_harvest_wallet', newAddr);
+          localStorage.setItem('binance_harvest_active_wallet', newAddr);
           syncWalletBalance(newAddr);
-          const profile = await updateUserProfileFields(user.email, { walletAddress: newAddr });
+          const profile = await updateUserProfileFields(newAddr, { walletAddress: newAddr });
           setUser(profile);
         } else {
           setWalletAddress(null);
-          localStorage.removeItem('binance_harvest_wallet');
+          localStorage.removeItem('binance_harvest_active_wallet');
           setWalletBalance('0.0000');
         }
       };
@@ -109,7 +129,7 @@ export default function App() {
         eth.removeListener?.('chainChanged', handleChainChanged);
       };
     }
-  }, [user.email]);
+  }, []);
 
   const handleConnectWallet = async () => {
     try {
@@ -118,9 +138,9 @@ export default function App() {
       const res = await connectWallet();
       if (res && res.address) {
         setWalletAddress(res.address);
-        localStorage.setItem('binance_harvest_wallet', res.address);
+        localStorage.setItem('binance_harvest_active_wallet', res.address);
         syncWalletBalance(res.address);
-        const profile = await updateUserProfileFields(user.email, { walletAddress: res.address });
+        const profile = await updateUserProfileFields(res.address, { walletAddress: res.address });
         setUser(profile);
 
         showSuccess({
@@ -158,7 +178,7 @@ export default function App() {
   const handleDisconnectWallet = () => {
     setWalletAddress(null);
     setWalletBalance('0.0000');
-    localStorage.removeItem('binance_harvest_wallet');
+    localStorage.removeItem('binance_harvest_active_wallet');
 
     showSuccess({
       initiativeName: 'Web3 Wallet Session',
@@ -168,17 +188,20 @@ export default function App() {
   };
 
   const handleUpdateUser = async (updatedFields: Partial<UserProfile>) => {
-    const identifier = user.email || user.walletAddress;
-    const newProfile = await updateUserProfileFields(identifier, updatedFields);
-    setUser(newProfile);
+    const identifier = user.walletAddress;
+    if (identifier) {
+      const newProfile = await updateUserProfileFields(identifier, updatedFields);
+      setUser(newProfile);
+    }
   };
 
   const handleTabChange = (tab: ActiveTab) => {
     // If user clicks any feature and is not authenticated/registered, prompt auth modal
-    if (!user.email || user.email.includes('new_miner')) {
+    if (!user.walletAddress) {
       setShowAuthModal(true);
     }
     setActiveTab(tab);
+    window.history.pushState(null, '', `/${tab}`);
   };
 
   return (
@@ -186,11 +209,15 @@ export default function App() {
       
       {/* Auth Modal (Mandatory Registration/Login) */}
       <AuthModal
-        isOpen={showAuthModal}
+        isOpen={showAuthModal || !user.walletAddress}
+        isClosable={!!user.walletAddress}
         onClose={() => setShowAuthModal(false)}
         onLoginSuccess={(profile) => {
           setUser(profile);
-          localStorage.setItem('binance_harvest_email', profile.email);
+          if (profile.walletAddress) {
+            setWalletAddress(profile.walletAddress);
+            syncWalletBalance(profile.walletAddress);
+          }
         }}
       />
 
@@ -271,7 +298,7 @@ export default function App() {
         {activeTab === 'help' && (
           <HelpView />
         )}
-        {activeTab === 'profile' && (
+        {activeTab === 'wallet' && (
           <ProfileView
             user={user}
             bnbPrice={bnbPrice}
@@ -285,7 +312,9 @@ export default function App() {
       </main>
 
       {/* Floating Bottom Navigation Bar */}
-      <BottomNav activeTab={activeTab} setActiveTab={handleTabChange} />
+      {(user.walletAddress && !showAuthModal) && (
+        <BottomNav activeTab={activeTab} setActiveTab={handleTabChange} />
+      )}
 
     </div>
   );

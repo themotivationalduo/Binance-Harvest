@@ -2,24 +2,25 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "User mining profile, tier progress, and verification status",
+      "description": "On-chain Web3 user mining profile, tier progress, and verification status",
       "type": "object",
       "properties": {
-        "email": { "type": "string" },
         "walletAddress": { "type": "string" },
         "currentTier": { "type": "number" },
         "totalPoints": { "type": "number" },
         "miningBalanceBNB": { "type": "number" },
         "lastClaimDate": { "type": "string" },
+        "minerStartTimestamp": { "type": "string" },
         "withdrawalStatus": { "type": "string" },
         "treasuryWalletAddress": { "type": "string" },
         "isVerified": { "type": "boolean" },
         "loginStreak": { "type": "number" },
         "lastStreakClaimDate": { "type": "string" },
         "totalStreakPointsClaimed": { "type": "number" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "lastActiveTimestamp": { "type": "string" }
       },
-      "required": ["email", "currentTier", "totalPoints"]
+      "required": ["walletAddress", "currentTier", "totalPoints"]
     },
     "TransactionRecord": {
       "title": "TransactionRecord",
@@ -27,7 +28,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "userEmail": { "type": "string" },
+        "userAddress": { "type": "string" },
         "type": { "type": "string" },
         "amountBNB": { "type": "number" },
         "amountUSD": { "type": "number" },
@@ -35,17 +36,17 @@
         "status": { "type": "string" },
         "timestamp": { "type": "string" }
       },
-      "required": ["id", "amountUSD", "type"]
+      "required": ["id", "userAddress", "amountUSD", "type", "txHash"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
+    "/users/{walletAddress}": {
       "schema": "UserProfile",
-      "description": "Stores user mining profiles by email or wallet address"
+      "description": "Stores user mining profiles keyed by on-chain BEP-20 wallet address"
     },
     "/transactions/{transactionId}": {
       "schema": "TransactionRecord",
-      "description": "Stores transaction receipts with BscScan hashes"
+      "description": "Stores transaction receipts with BscScan hashes and miner wallet address"
     }
   }
 }

@@ -53,23 +53,44 @@ if (isFirebaseConfigured) {
 export { db, auth };
 
 // LocalStorage fallback storage helper
-export const STORAGE_KEY_PREFIX = "binance_harvest_user_";
-export const TX_STORAGE_KEY = "binance_harvest_transactions_";
+export const STORAGE_KEY_PREFIX = "binance_harvest_wallet_";
+export const TX_STORAGE_KEY = "binance_harvest_txs_";
 
-export async function getUserProfile(identifier: string): Promise<UserProfile> {
-  const normalizedKey = identifier.toLowerCase();
+export async function getUserProfile(walletAddress: string): Promise<UserProfile> {
+  if (!walletAddress) {
+    return {
+      walletAddress: '',
+      currentTier: 1,
+      totalPoints: 0,
+      miningBalanceBNB: 0,
+      lastClaimDate: new Date().toISOString().split('T')[0],
+      minerStartTimestamp: new Date().toISOString(),
+      withdrawalStatus: 'NOT_STARTED',
+      treasuryWalletAddress: TREASURY_WALLET,
+      isVerified: false,
+      loginStreak: 0,
+      lastStreakClaimDate: '',
+      totalStreakPointsClaimed: 0,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const normalizedAddress = walletAddress.toLowerCase();
   
   if (db) {
     try {
-      const docRef = doc(db, "users", normalizedKey);
+      const docRef = doc(db, "users", normalizedAddress);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
         return {
           ...data,
+          walletAddress: normalizedAddress,
+          treasuryWalletAddress: TREASURY_WALLET,
           loginStreak: data.loginStreak ?? 0,
           lastStreakClaimDate: data.lastStreakClaimDate ?? '',
           totalStreakPointsClaimed: data.totalStreakPointsClaimed ?? 0,
+          minerStartTimestamp: data.minerStartTimestamp ?? new Date().toISOString(),
         };
       }
     } catch (e) {
@@ -78,24 +99,26 @@ export async function getUserProfile(identifier: string): Promise<UserProfile> {
   }
 
   // Fallback to localStorage
-  const localData = localStorage.getItem(STORAGE_KEY_PREFIX + normalizedKey);
+  const localData = localStorage.getItem(STORAGE_KEY_PREFIX + normalizedAddress);
   if (localData) {
     const profile = JSON.parse(localData) as UserProfile;
+    profile.walletAddress = normalizedAddress;
     profile.treasuryWalletAddress = TREASURY_WALLET;
     profile.loginStreak = profile.loginStreak ?? 0;
     profile.lastStreakClaimDate = profile.lastStreakClaimDate ?? '';
     profile.totalStreakPointsClaimed = profile.totalStreakPointsClaimed ?? 0;
+    profile.minerStartTimestamp = profile.minerStartTimestamp ?? new Date().toISOString();
     return profile;
   }
 
-  // Create default user profile starting afresh (0 points, tier 1)
+  // Create default on-chain user profile starting afresh (0 points, tier 1)
   const defaultProfile: UserProfile = {
-    email: identifier.includes('@') ? identifier : `miner_${normalizedKey.slice(0, 8)}@binanceharvest.io`,
-    walletAddress: identifier.startsWith('0x') ? identifier : '',
+    walletAddress: normalizedAddress,
     currentTier: 1,
     totalPoints: 0,
     miningBalanceBNB: 0,
     lastClaimDate: new Date().toISOString().split('T')[0],
+    minerStartTimestamp: new Date().toISOString(),
     withdrawalStatus: 'NOT_STARTED',
     treasuryWalletAddress: TREASURY_WALLET,
     isVerified: false,
@@ -103,45 +126,50 @@ export async function getUserProfile(identifier: string): Promise<UserProfile> {
     lastStreakClaimDate: '',
     totalStreakPointsClaimed: 0,
     createdAt: new Date().toISOString(),
+    lastActiveTimestamp: new Date().toISOString(),
   };
 
-  await saveUserProfile(defaultProfile.email, defaultProfile);
+  await saveUserProfile(normalizedAddress, defaultProfile);
   return defaultProfile;
 }
 
-export async function saveUserProfile(identifier: string, profile: UserProfile): Promise<void> {
-  const normalizedKey = identifier.toLowerCase();
+export async function saveUserProfile(walletAddress: string, profile: UserProfile): Promise<void> {
+  if (!walletAddress) return;
+  const normalizedAddress = walletAddress.toLowerCase();
+  const dataToSave = {
+    ...profile,
+    walletAddress: normalizedAddress,
+    treasuryWalletAddress: TREASURY_WALLET,
+    lastActiveTimestamp: new Date().toISOString(),
+  };
   
-  localStorage.setItem(STORAGE_KEY_PREFIX + normalizedKey, JSON.stringify(profile));
-  // also save by wallet if present
-  if (profile.walletAddress) {
-    localStorage.setItem(STORAGE_KEY_PREFIX + profile.walletAddress.toLowerCase(), JSON.stringify(profile));
-  }
+  localStorage.setItem(STORAGE_KEY_PREFIX + normalizedAddress, JSON.stringify(dataToSave));
 
   if (db) {
     try {
-      const docRef = doc(db, "users", normalizedKey);
-      await setDoc(docRef, profile, { merge: true });
+      const docRef = doc(db, "users", normalizedAddress);
+      await setDoc(docRef, dataToSave, { merge: true });
     } catch (e) {
       console.warn("Firestore save failed, saved locally:", e);
     }
   }
 }
 
-export async function updateUserProfileFields(identifier: string, fields: Partial<UserProfile>): Promise<UserProfile> {
-  const profile = await getUserProfile(identifier);
+export async function updateUserProfileFields(walletAddress: string, fields: Partial<UserProfile>): Promise<UserProfile> {
+  const profile = await getUserProfile(walletAddress);
   const updated = { ...profile, ...fields };
-  await saveUserProfile(identifier, updated);
+  await saveUserProfile(walletAddress, updated);
   return updated;
 }
 
 // Transaction Records
-export async function getTransactionHistory(identifier: string): Promise<TransactionRecord[]> {
-  const normalizedKey = identifier.toLowerCase();
+export async function getTransactionHistory(walletAddress: string): Promise<TransactionRecord[]> {
+  if (!walletAddress) return [];
+  const normalizedAddress = walletAddress.toLowerCase();
   
   if (db) {
     try {
-      const q = query(collection(db, "transactions"), where("userEmail", "==", normalizedKey));
+      const q = query(collection(db, "transactions"), where("userAddress", "==", normalizedAddress));
       const querySnapshot = await getDocs(q);
       const records: TransactionRecord[] = [];
       querySnapshot.forEach((docSnap) => {
@@ -155,7 +183,7 @@ export async function getTransactionHistory(identifier: string): Promise<Transac
     }
   }
 
-  const localTx = localStorage.getItem(TX_STORAGE_KEY + normalizedKey);
+  const localTx = localStorage.getItem(TX_STORAGE_KEY + normalizedAddress);
   if (localTx) {
     return JSON.parse(localTx);
   }
@@ -163,28 +191,26 @@ export async function getTransactionHistory(identifier: string): Promise<Transac
   return [];
 }
 
-export async function addTransactionRecord(identifier: string, record: Omit<TransactionRecord, 'id' | 'timestamp'>): Promise<TransactionRecord> {
-  const normalizedKey = identifier.toLowerCase();
+export async function addTransactionRecord(walletAddress: string, record: Omit<TransactionRecord, 'id' | 'timestamp' | 'userAddress'>): Promise<TransactionRecord> {
+  const normalizedAddress = (walletAddress || '').toLowerCase();
   const fullRecord: TransactionRecord = {
     ...record,
     id: 'tx_' + Math.random().toString(36).substring(2, 11),
+    userAddress: normalizedAddress,
     timestamp: new Date().toISOString(),
   };
 
   if (db) {
     try {
-      await addDoc(collection(db, "transactions"), {
-        ...fullRecord,
-        userEmail: normalizedKey,
-      });
+      await addDoc(collection(db, "transactions"), fullRecord);
     } catch (e) {
       console.warn("Firestore transaction add failed:", e);
     }
   }
 
-  const existing = await getTransactionHistory(normalizedKey);
+  const existing = await getTransactionHistory(normalizedAddress);
   const updated = [fullRecord, ...existing];
-  localStorage.setItem(TX_STORAGE_KEY + normalizedKey, JSON.stringify(updated));
+  localStorage.setItem(TX_STORAGE_KEY + normalizedAddress, JSON.stringify(updated));
 
   return fullRecord;
 }

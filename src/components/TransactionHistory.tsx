@@ -17,14 +17,14 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) 
   const fetchTxs = async (manual = false) => {
     try {
       setLoading(true);
-      const records = await getTransactionHistory(user.email || user.walletAddress);
+      const records = await getTransactionHistory(user.walletAddress);
       setTransactions(records);
       if (manual) {
         showSuccess({
           initiativeName: 'On-Chain Audit Records',
           title: 'Audit Ledger Refreshed',
           badge: `${records.length} Records`,
-          description: `Successfully synchronized ${records.length} on-chain BSC transaction records with Firestore.`,
+          description: `Successfully synchronized ${records.length} on-chain BSC transaction records.`,
         });
       }
     } catch (e) {
@@ -36,7 +36,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) 
 
   useEffect(() => {
     fetchTxs(false);
-  }, [user]);
+  }, [user.walletAddress]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 pb-24">
@@ -47,7 +47,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) 
             Transaction & Audit History
           </h1>
           <p className="text-xs text-[#848E9C]">
-            Verified blockchain interaction logs for your account ({user.email})
+            Verified blockchain interaction logs for your account
           </p>
         </div>
         <motion.button

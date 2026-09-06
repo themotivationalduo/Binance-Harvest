@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Mail, Lock, CheckCircle2, AlertCircle, X, ShieldCheck, FileText, ChevronLeft, ArrowRight, Wallet } from 'lucide-react';
-import { auth, getUserProfile, updateUserProfileFields } from '../services/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Wallet, Globe, CheckCircle2, AlertCircle, X, ExternalLink, Copy, Check, Sparkles, RefreshCw, Lock } from 'lucide-react';
 import { UserProfile } from '../types';
-import { connectWallet } from '../services/web3';
+import { connectWallet, switchToBSC, detectWeb3Providers, signWeb3AuthMessage } from '../services/web3';
+import { getUserProfile, saveUserProfile } from '../services/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
@@ -11,153 +10,102 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: UserProfile) => void;
-  initialMode?: 'register' | 'login';
+  isClosable?: boolean;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
-  initialMode = 'register',
+  isClosable = true,
 }) => {
-  const [isRegister, setIsRegister] = useState(initialMode === 'register');
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [requireSignature, setRequireSignature] = useState(false);
+
   const { showSuccess, showFailed } = useInitiativeFeedback();
+
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!email || !password) {
-      const err = "Please fill in all required fields.";
-      setError(err);
-      showFailed({
-        initiativeName: 'Authentication Protocol',
-        title: 'Missing Fields',
-        description: err,
-      });
-      return;
+  const handleCopyAppUrl = async () => {
+    try {
+      await navigator.clipboard.writeText("https://binanceharvest.vercel.app");
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 3000);
+    } catch {
+      // Fallback
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 3000);
     }
+  };
 
-    if (isRegister) {
-      if (password !== confirmPassword) {
-        const err = "Passwords do not match.";
-        setError(err);
-        showFailed({
-          initiativeName: 'Registration Protocol',
-          title: 'Password Mismatch',
-          description: 'The confirmation password does not match your entered password.',
-        });
-        return;
-      }
-      if (!acceptedTerms) {
-        const err = "You must accept the terms and conditions to register.";
-        setError(err);
-        showFailed({
-          initiativeName: 'Registration Protocol',
-          title: 'Terms Acceptance Required',
-          description: 'Please review and accept the protocol terms before creating your miner account.',
-        });
-        return;
-      }
-    }
-
+  const handleAuthenticateWeb3 = async (walletType?: string) => {
     try {
       setLoading(true);
-      const userEmail = email.trim();
+      setError(null);
 
-      if (auth) {
-        if (isRegister) {
-          try {
-            await createUserWithEmailAndPassword(auth, userEmail, password);
-          } catch (err: any) {
-            // If email already exists, continue to profile lookup
-            if (err.code !== 'auth/email-already-in-use') {
-              throw err;
-            }
-          }
-        } else {
-          try {
-            await signInWithEmailAndPassword(auth, userEmail, password);
-          } catch (err: any) {
-            console.warn("Auth sign-in fallback:", err);
+      // Connect to Web3 provider
+      const res = await connectWallet();
+      if (!res || !res.address) {
+        throw new Error("No authorized wallet address received.");
+      }
+
+      const normalizedAddress = res.address.toLowerCase();
+
+      // If user selected cryptographic signature verification
+      if (requireSignature && res.signer) {
+        try {
+          await signWeb3AuthMessage(res.signer, res.address);
+        } catch (signErr: any) {
+          if (signErr?.code === 4001 || signErr?.message?.includes("User rejected")) {
+            throw new Error("Signature verification was rejected in your Web3 wallet.");
           }
         }
       }
 
-      // Load or initialize profile
-      const profile = await getUserProfile(userEmail);
+      // Sync with Firestore profile keyed strictly by on-chain address
+      const profile = await getUserProfile(normalizedAddress);
+      profile.walletAddress = normalizedAddress;
+      await saveUserProfile(normalizedAddress, profile);
+
+      // Persist active wallet address
+      localStorage.setItem('binance_harvest_active_wallet', normalizedAddress);
+
       onLoginSuccess(profile);
       onClose();
 
       showSuccess({
-        initiativeName: isRegister ? 'Account Registration' : 'Miner Authentication',
-        title: isRegister ? 'Miner Account Created!' : 'Welcome Back!',
-        badge: `Tier ${profile.currentTier} Miner`,
-        description: `Successfully signed in as ${userEmail}. Your cloud hashpower and balance are loaded.`,
+        initiativeName: 'Web3 On-Chain Authentication',
+        title: 'Miner Authenticated On-Chain!',
+        badge: 'BSC Mainnet (56)',
+        description: `Successfully authenticated on-chain identity for ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}. Your cloud hashpower and balance records are loaded.`,
         details: [
-          { label: 'Account', value: userEmail },
+          { label: 'Miner Address', value: `${res.address.substring(0, 10)}...${res.address.substring(res.address.length - 4)}` },
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
           { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
-          { label: 'Mined Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
+          { label: 'Total Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
         ],
       });
     } catch (err: any) {
-      console.error("Auth error:", err);
-      const errMsg = err?.message || "Authentication failed. Please check credentials.";
+      console.error("Web3 authentication error:", err);
+      const isNotFound = err?.message?.includes("WEB3_WALLET_NOT_FOUND");
+      const errMsg = isNotFound
+        ? "No Web3 wallet detected. Please install MetaMask, Trust Wallet, or open this app inside your mobile wallet dApp browser."
+        : (err?.message || "Failed to authenticate on Binance Smart Chain.");
       setError(errMsg);
       showFailed({
-        initiativeName: isRegister ? 'Account Registration' : 'Miner Authentication',
-        title: isRegister ? 'Registration Failed' : 'Sign-In Failed',
+        initiativeName: 'Web3 On-Chain Authentication',
+        title: 'Authentication Unsuccessful',
         description: errMsg,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConnectWeb3Login = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await connectWallet();
-      if (res && res.address) {
-        const profile = await getUserProfile(res.address);
-        await updateUserProfileFields(res.address, { walletAddress: res.address });
-        onLoginSuccess({ ...profile, walletAddress: res.address });
-        onClose();
-
-        showSuccess({
-          initiativeName: 'Web3 Wallet Sign-In',
-          title: 'Wallet Connected!',
-          badge: 'BSC Mainnet',
-          description: `Successfully authenticated with Binance Smart Chain wallet ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}.`,
-          details: [
-            { label: 'Wallet Address', value: `${res.address.substring(0, 10)}...` },
-            { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
-            { label: 'Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
-          ],
-        });
-      }
-    } catch (err: any) {
-      console.error("Web3 login error:", err);
-      const errMsg = err?.message?.includes("WEB3_WALLET_NOT_FOUND")
-        ? "No Web3 wallet detected. Please install MetaMask, Trust Wallet, or open this app in your Web3 browser."
-        : (err?.message || "Failed to authenticate with Web3 wallet.");
-      setError(errMsg);
-      showFailed({
-        initiativeName: 'Web3 Wallet Sign-In',
-        title: 'Web3 Authentication Failed',
-        description: errMsg,
-        actionLabel: 'Try Again',
-        onAction: () => handleConnectWeb3Login(),
+        actionLabel: isNotFound ? 'Copy Link for Mobile dApp' : 'Retry Web3 Connect',
+        onAction: isNotFound ? handleCopyAppUrl : () => handleAuthenticateWeb3(walletType),
       });
     } finally {
       setLoading(false);
@@ -166,365 +114,142 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex min-h-screen items-center justify-center animate-fade-in overscroll-contain">
-      <div className="relative w-full max-w-md my-auto max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] flex flex-col bg-[#1E2329]/95 backdrop-blur-2xl border border-white/20 rounded-2xl sm:rounded-3xl shadow-[0_12px_40px_0_rgba(0,0,0,0.8)] ring-1 ring-white/10 overflow-hidden">
+      <div className="relative w-full max-w-lg my-auto flex flex-col bg-[#0B0E11]/95 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_16px_50px_0_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden">
         
-        {/* Top Header - Fixed above scrollable body */}
-        <div className="p-5 sm:p-6 pb-3 border-b border-white/10 shrink-0 bg-white/[0.02]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#F3BA2F] rounded-xl flex items-center justify-center shadow-lg shadow-[#F3BA2F]/20">
-                <ShieldCheck className="w-5 h-5 text-black" />
-              </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                  Binance<span className="text-[#F3BA2F]">Harvest</span>
-                </h2>
-                <p className="text-xs text-[#848E9C]">
-                  Decentralized Cloud Mining Hub
-                </p>
-              </div>
-            </div>
+        {/* Mirror Glass Glow Highlights */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#F3BA2F]/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#00C087]/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
+        {/* Modal Header */}
+        <div className="p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-[#F3BA2F] rounded-2xl flex items-center justify-center shadow-lg shadow-[#F3BA2F]/25 text-black">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-white tracking-tight">
+                  Web3 Authentication
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00C087]/20 text-[#00C087] border border-[#00C087]/30">
+                  On-Chain Only
+                </span>
+              </div>
+              <p className="text-xs text-[#848E9C]">
+                Binance Smart Chain (BEP-20) Decentralized ID
+              </p>
+            </div>
+          </div>
+
+          {isClosable && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-[#848E9C] hover:text-white hover:bg-white/10 transition"
-              aria-label="Close"
+              className="p-2 rounded-xl text-[#848E9C] hover:text-white hover:bg-white/10 transition"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
-          </div>
-
-          {/* Segmented Tab Switcher for both Authentication Pages */}
-          <div className="grid grid-cols-2 p-1 bg-black/40 rounded-xl border border-white/10 mt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegister(true);
-                setError(null);
-                setShowTermsModal(false);
-              }}
-              className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                isRegister && !showTermsModal
-                  ? 'bg-[#F3BA2F] text-black shadow-md shadow-[#F3BA2F]/25'
-                  : 'text-[#848E9C] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span>Create Account</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegister(false);
-                setError(null);
-                setShowTermsModal(false);
-              }}
-              className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                !isRegister && !showTermsModal
-                  ? 'bg-[#F3BA2F] text-black shadow-md shadow-[#F3BA2F]/25'
-                  : 'text-[#848E9C] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span>Sign In</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Scrollable Body - Both Authentication Pages scroll smoothly */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-4 touch-pan-y custom-scrollbar">
-          
-          {showTermsModal ? (
-            /* Scrollable Terms & Conditions reader view */
-            <div className="space-y-4 text-xs text-[#848E9C]">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setShowTermsModal(false)}
-                  className="flex items-center gap-1 text-[#F3BA2F] hover:underline font-semibold"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Back to Registration</span>
-                </button>
-                <span className="text-[10px] text-white/50 uppercase tracking-wider">Protocol Terms</span>
-              </div>
-
-              <div className="p-3 bg-black/30 rounded-xl border border-white/10 space-y-3 leading-relaxed text-slate-300">
-                <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-[#F3BA2F]" />
-                  <span>BinanceHarvest Mining Protocol Terms</span>
-                </h4>
-                <p>
-                  1. <strong className="text-white">Proof of Stake & Cloud Mining:</strong> Users participate in automated cloud yield hashing pegged to real-time Binance Smart Chain (BSC) blocks.
-                </p>
-                <p>
-                  2. <strong className="text-white">Tier Upgrades & Verification Fees:</strong> Upgrades to higher mining tiers require a $1.00 USD fee in BNB. Final withdrawal verification requires a $5.00 USD transaction sent to the verified Treasury Wallet. All fees are recorded on-chain.
-                </p>
-                <p>
-                  3. <strong className="text-white">Blockchain Risks:</strong> Cryptocurrency values fluctuate based on open market conditions. Mining reward estimates are based on live BNB/USDT pricing feeds.
-                </p>
-                <p>
-                  4. <strong className="text-white">Account Security:</strong> You are responsible for safeguarding your credentials and private Web3 wallet keys. Never share private keys with anyone.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAcceptedTerms(true);
-                  setShowTermsModal(false);
-                }}
-                className="w-full bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold py-2.5 rounded-xl text-xs transition active:scale-95 shadow-md shadow-[#F3BA2F]/20 flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Accept Terms & Return</span>
-              </button>
-            </div>
-          ) : isRegister ? (
-            /* ==================================================== */
-            /* PAGE 1: CREATE ACCOUNT (REGISTER) - FULLY SCROLLABLE */
-            /* ==================================================== */
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-white">Create Your Miner Account</h3>
-                <p className="text-xs text-[#848E9C]">
-                  Start fresh at Tier 1 with 0 points and initialize your mining dashboard.
-                </p>
-              </div>
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#848E9C] mb-1.5">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3 w-4 h-4 text-[#848E9C]" />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="miner@binanceharvest.io"
-                      className="w-full bg-[#0B0E11]/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F3BA2F] transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#848E9C] mb-1.5">
-                    Choose Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-[#848E9C]" />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-[#0B0E11]/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F3BA2F] transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#848E9C] mb-1.5">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-[#848E9C]" />
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-[#0B0E11]/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F3BA2F] transition"
-                    />
-                  </div>
-                </div>
-
-                {/* Terms Agreement Checkbox & Scrollable Terms Link */}
-                <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1">
-                  <div className="flex items-start gap-2.5">
-                    <input
-                      type="checkbox"
-                      id="terms-check"
-                      checked={acceptedTerms}
-                      onChange={(e) => setAcceptedTerms(e.target.checked)}
-                      className="mt-0.5 rounded border-slate-700 bg-[#0B0E11] text-[#F3BA2F] focus:ring-0 cursor-pointer"
-                    />
-                    <label htmlFor="terms-check" className="text-xs text-slate-300 leading-relaxed cursor-pointer select-none">
-                      I agree to the{' '}
-                      <button
-                        type="button"
-                        onClick={() => setShowTermsModal(true)}
-                        className="text-[#F3BA2F] font-semibold underline hover:text-amber-300 transition"
-                      >
-                        Terms and Conditions
-                      </button>{' '}
-                      and understand BSC blockchain mining protocol terms.
-                    </label>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold py-3 rounded-xl text-sm transition active:scale-95 disabled:opacity-50 shadow-lg shadow-[#F3BA2F]/20 flex items-center justify-center gap-2 mt-2"
-                >
-                  {loading ? (
-                    <span>Registering Account...</span>
-                  ) : (
-                    <>
-                      <span>Create Account & Start Fresh</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div className="pt-2 text-center text-xs text-[#848E9C] space-y-2">
-                <p>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRegister(false);
-                      setError(null);
-                    }}
-                    className="text-[#F3BA2F] font-bold hover:underline"
-                  >
-                    Sign In instead
-                  </button>
-                </p>
-
-                <div className="pt-3 border-t border-white/10 flex flex-col items-center gap-2">
-                  <div className="text-[11px] text-slate-400">Or authenticate via Web3 on-chain</div>
-                  <button
-                    type="button"
-                    onClick={handleConnectWeb3Login}
-                    disabled={loading}
-                    className="w-full text-xs text-white hover:text-[#F3BA2F] transition flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-medium"
-                  >
-                    <Wallet className="w-4 h-4 text-[#F3BA2F]" />
-                    <span>Sign in with Web3 Wallet (MetaMask / BSC)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* ==================================================== */
-            /* PAGE 2: SIGN IN (LOGIN) - FULLY SCROLLABLE          */
-            /* ==================================================== */
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-white">Sign In to Mining Hub</h3>
-                <p className="text-xs text-[#848E9C]">
-                  Access your active cloud mining rigs, earned points, and withdrawal progress.
-                </p>
-              </div>
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#848E9C] mb-1.5">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-3 w-4 h-4 text-[#848E9C]" />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="miner@binanceharvest.io"
-                      className="w-full bg-[#0B0E11]/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F3BA2F] transition"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#848E9C]">
-                      Password
-                    </label>
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-[#848E9C]" />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-[#0B0E11]/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F3BA2F] transition"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold py-3 rounded-xl text-sm transition active:scale-95 disabled:opacity-50 shadow-lg shadow-[#F3BA2F]/20 flex items-center justify-center gap-2 mt-3"
-                >
-                  {loading ? (
-                    <span>Signing in...</span>
-                  ) : (
-                    <>
-                      <span>Sign In to Dashboard</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div className="pt-2 text-center text-xs text-[#848E9C] space-y-2">
-                <p>
-                  Need a new account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRegister(true);
-                      setError(null);
-                    }}
-                    className="text-[#F3BA2F] font-bold hover:underline"
-                  >
-                    Create Account
-                  </button>
-                </p>
-
-                <div className="pt-3 border-t border-white/10 flex flex-col items-center gap-2">
-                  <div className="text-[11px] text-slate-400">Or authenticate via Web3 on-chain</div>
-                  <button
-                    type="button"
-                    onClick={handleConnectWeb3Login}
-                    disabled={loading}
-                    className="w-full text-xs text-white hover:text-[#F3BA2F] transition flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-medium"
-                  >
-                    <Wallet className="w-4 h-4 text-[#F3BA2F]" />
-                    <span>Sign in with Web3 Wallet (MetaMask / BSC)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
           )}
         </div>
 
-        {/* Subtle Footer hint indicating scrollability */}
-        <div className="px-5 py-2.5 bg-black/40 border-t border-white/5 text-[11px] text-[#848E9C] text-center shrink-0">
-          <span className="opacity-70">Scroll view to access all account settings</span>
+        {/* Modal Body */}
+        <div className="p-6 space-y-5 relative z-10 max-h-[calc(85vh-120px)] overflow-y-auto custom-scrollbar">
+          
+          {/* Error Message */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="p-4 bg-red-500/15 border border-red-500/40 text-red-300 text-xs rounded-2xl flex items-start gap-3 shadow-lg shadow-red-500/10 backdrop-blur-md"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-semibold block">Authentication Notice:</span>
+                  <span className="leading-relaxed">{error}</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Network Banner */}
+          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#00C087] animate-pulse shadow-[0_0_10px_#00C087]" />
+              <div>
+                <p className="text-xs font-bold text-white">Target Network: BSC Mainnet</p>
+                <p className="text-[11px] text-[#848E9C]">Chain ID 56 • Native Currency BNB</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-mono font-semibold text-[#F3BA2F] px-2.5 py-1 bg-[#F3BA2F]/10 border border-[#F3BA2F]/20 rounded-lg">
+              BEP-20
+            </span>
+          </div>
+
+          {/* Cryptographic signature option */}
+          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-white">Cryptographic Challenge Signature</p>
+                <p className="text-[11px] text-[#848E9C]">Request an on-chain personal sign challenge</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRequireSignature(!requireSignature)}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                requireSignature ? 'bg-[#F3BA2F]' : 'bg-white/10'
+              }`}
+            >
+              <div
+                className={`w-4 h-4 rounded-full bg-black transition-transform absolute top-1 ${
+                  requireSignature ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Primary Action Button */}
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleAuthenticateWeb3()}
+            disabled={loading}
+            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-[#F3BA2F]/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                <span>Connecting & Verifying On-Chain...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-black" />
+                <span>One-Click Web3 Authentication</span>
+              </>
+            )}
+          </motion.button>
+
+          {/* Mobile / Fallback Helper */}
+          <div className="pt-2 border-t border-white/10 space-y-3">
+            <div className="flex items-center justify-between text-xs text-[#848E9C]">
+              <span>Opening on mobile?</span>
+              <button
+                onClick={handleCopyAppUrl}
+                className="flex items-center gap-1.5 text-amber-400 hover:underline cursor-pointer font-medium"
+              >
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#00C087]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedUrl ? 'Copied to Clipboard!' : 'Copy App URL for dApp Browser'}</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[#848E9C] leading-relaxed text-center">
+              Decentralized Non-Custodial Architecture: No passwords or emails needed. Your on-chain address is verified directly via Binance Smart Chain RPC.
+            </p>
+          </div>
+
         </div>
       </div>
     </div>

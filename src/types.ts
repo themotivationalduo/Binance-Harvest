@@ -1,10 +1,10 @@
 export interface UserProfile {
-  email: string;
-  walletAddress: string;
+  walletAddress: string; // Primary On-Chain Identifier (BEP-20)
   currentTier: number;
   totalPoints: number;
   miningBalanceBNB: number;
-  lastClaimDate: string;
+  lastClaimDate: string; // Legacy or just day tracking
+  minerStartTimestamp?: string; // Exact time the current mining session started
   withdrawalStatus: 'NOT_STARTED' | 'PENDING_ADMIN_APPROVAL' | 'APPROVED';
   treasuryWalletAddress: string;
   isVerified: boolean;
@@ -12,6 +12,7 @@ export interface UserProfile {
   lastStreakClaimDate: string;
   totalStreakPointsClaimed: number;
   createdAt: string;
+  lastActiveTimestamp?: string;
 }
 
 export interface TierInfo {
@@ -24,6 +25,7 @@ export interface TierInfo {
 
 export interface TransactionRecord {
   id: string;
+  userAddress: string;
   type: 'UPGRADE' | 'WITHDRAW_FEE' | 'CLAIM';
   amountBNB: number;
   amountUSD: number;

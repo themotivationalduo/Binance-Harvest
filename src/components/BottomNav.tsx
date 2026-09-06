@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Zap, Landmark, Trophy, User, History, HelpCircle } from 'lucide-react';
 
-export type ActiveTab = 'dashboard' | 'tiers' | 'treasury' | 'leaderboard' | 'profile' | 'history' | 'help';
+export type ActiveTab = 'dashboard' | 'tiers' | 'treasury' | 'leaderboard' | 'wallet' | 'history' | 'help';
 
 interface BottomNavProps {
   activeTab: ActiveTab;
@@ -10,7 +10,6 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
   const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   useEffect(() => {
     let scrollTimeout: any = null;
@@ -18,17 +17,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
-      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+      if (currentScrollY > 20) {
         setIsVisible(false);
       } else {
         setIsVisible(true);
       }
-      setLastScrollY(currentScrollY);
 
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
         setIsVisible(true);
-      }, 150);
+      }, 400);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -36,7 +34,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeout) clearTimeout(scrollTimeout);
     };
-  }, [lastScrollY]);
+  }, []);
 
   const navItems = [
     { id: 'dashboard' as ActiveTab, label: 'Mining', icon: Cpu },
@@ -45,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
     { id: 'leaderboard' as ActiveTab, label: 'Ranks', icon: Trophy },
     { id: 'history' as ActiveTab, label: 'Audit', icon: History },
     { id: 'help' as ActiveTab, label: 'Help', icon: HelpCircle },
-    { id: 'profile' as ActiveTab, label: 'Wallet', icon: User },
+    { id: 'wallet' as ActiveTab, label: 'Wallet', icon: User },
   ];
 
   return (
@@ -54,7 +52,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
         isVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-24 opacity-0 pointer-events-none'
       }`}
     >
-      <nav className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2 rounded-2xl bg-[#1E2329]/80 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.6)] ring-1 ring-white/10 overflow-x-auto no-scrollbar">
+      <nav className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-2 px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -62,14 +60,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 ${
+              title={item.label}
+              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full border shadow-lg backdrop-blur-xl transition-all duration-300 shrink-0 ${
                 isActive
-                  ? 'bg-[#F3BA2F] text-black shadow-lg shadow-[#F3BA2F]/25 scale-105 font-bold'
-                  : 'text-[#848E9C] hover:text-white hover:bg-white/10'
+                  ? 'bg-[#F3BA2F] border-[#F3BA2F] text-black shadow-[#F3BA2F]/30 scale-110'
+                  : 'bg-[#1E2329]/90 border-white/20 text-[#848E9C] hover:text-white hover:border-white/40 hover:bg-[#1E2329]'
               }`}
             >
-              <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-black' : 'text-[#F3BA2F]'}`} />
-              <span className="hidden md:inline">{item.label}</span>
+              <Icon className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${isActive ? 'text-black' : 'text-[#F3BA2F]'}`} />
             </button>
           );
         })}

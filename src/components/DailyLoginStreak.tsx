@@ -135,7 +135,7 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
       const newTotalPoints = (user.totalPoints || 0) + earnedBonus;
       const newTotalStreakClaimed = (user.totalStreakPointsClaimed || 0) + earnedBonus;
 
-      const userIdentifier = user.email || user.walletAddress || 'anonymous_miner';
+      const userIdentifier = user.walletAddress || 'anonymous_miner';
 
       // Persist directly to Firestore
       const updatedFields: Partial<UserProfile> = {
@@ -159,12 +159,12 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
           { label: 'Bonus Reward', value: `+${earnedBonus.toLocaleString()} PTS (≈ $${((earnedBonus / 1000) * 0.50).toFixed(2)} USD)` },
           { label: 'New Total Balance', value: `${newTotalPoints.toLocaleString()} PTS` },
           { label: 'Next Reward Tomorrow', value: `+${getStreakRewardPoints(newStreak + 1).toLocaleString()} PTS` },
-          { label: 'Cloud Storage', value: 'Saved to Firestore Ledger' },
+          { label: 'Cloud Storage', value: 'Saved to Secure Ledger' },
         ],
       });
     } catch (err: any) {
       console.error('Failed to claim streak:', err);
-      const errMsg = err?.message || 'Network error saving daily streak to Firestore. Please try again.';
+      const errMsg = err?.message || 'Network error saving daily streak. Please try again.';
       showFailed({
         initiativeName: 'Daily Mining Streak',
         title: 'Streak Claim Failed',
@@ -210,7 +210,7 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1 max-w-xl">
-              Visit consecutively every day to collect escalating bonus points starting from <strong className="text-[#F3BA2F]">100 PTS</strong> up to <strong className="text-amber-400">1,500 PTS</strong>. Stored and synced in real-time with Firestore.
+              Visit consecutively every day to collect escalating bonus points starting from <strong className="text-[#F3BA2F]">100 PTS</strong> up to <strong className="text-amber-400">1,500 PTS</strong>. Stored and synced in real-time.
             </p>
           </div>
         </div>
@@ -359,7 +359,7 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
             {isClaiming ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
-                <span>Syncing Firestore...</span>
+                <span>Syncing Ledger...</span>
               </>
             ) : alreadyClaimedToday ? (
               <>

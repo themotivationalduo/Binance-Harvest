@@ -1,9 +1,11 @@
-import React from 'react';
-import { UserProfile } from '../types';
-import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw, Flame, Sparkles } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { UserProfile, TransactionRecord } from '../types';
+import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw, Flame, Sparkles, Medal } from 'lucide-react';
 import { switchToBSC, TREASURY_WALLET } from '../services/web3';
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { getTransactionHistory } from '../services/firebase';
+import { ACHIEVEMENTS_DATA, evaluateAchievements } from '../lib/achievements';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -24,8 +26,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onDisconnectWallet,
   onOpenAuth,
 }) => {
-  const [switchingNetwork, setSwitchingNetwork] = React.useState(false);
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const { showSuccess, showFailed } = useInitiativeFeedback();
+
+  useEffect(() => {
+    const fetchAchievements = async () => {
+      if (user.walletAddress) {
+        const txs = await getTransactionHistory(user.walletAddress);
+        const unlocked = evaluateAchievements(user, txs);
+        setUnlockedAchievements(unlocked);
+      }
+    };
+    fetchAchievements();
+  }, [user.walletAddress, user.totalPoints, user.loginStreak, user.currentTier, user.withdrawalStatus]);
 
   const handleSwitch = async () => {
     setSwitchingNetwork(true);
@@ -154,8 +168,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-            <div className="text-xs text-slate-400 mb-1">Assigned Email</div>
-            <div className="font-mono text-white break-all">{user.email}</div>
+            <div className="text-xs text-slate-400 mb-1">Primary On-Chain ID</div>
+            <div className="font-mono text-white break-all">{user.walletAddress || 'Not Authenticated'}</div>
           </div>
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
             <div className="text-xs text-slate-400 mb-1">Account Created</div>
@@ -179,6 +193,46 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               +{(user.totalStreakPointsClaimed || 0).toLocaleString()} PTS
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Achievements & Badges */}
+      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-xl space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Medal className="w-5 h-5 text-[#F3BA2F]" />
+          <h3 className="text-lg font-bold text-white">Achievements & Badges</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {ACHIEVEMENTS_DATA.map((achievement) => {
+            const isUnlocked = unlockedAchievements.includes(achievement.id);
+            return (
+              <div 
+                key={achievement.id} 
+                className={`relative p-5 rounded-2xl border transition-all duration-300 ${
+                  isUnlocked 
+                    ? `bg-white/5 border-white/20 hover:border-white/40 shadow-lg` 
+                    : `bg-slate-950/60 border-white/5 opacity-60 grayscale`
+                }`}
+              >
+                {!isUnlocked && (
+                  <div className="absolute top-3 right-3 text-[10px] uppercase tracking-wider font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
+                    Locked
+                  </div>
+                )}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-3 border ${
+                  isUnlocked ? achievement.color : 'bg-slate-800 border-slate-700 text-slate-600'
+                }`}>
+                  {achievement.icon}
+                </div>
+                <h4 className={`font-bold text-sm mb-1 ${isUnlocked ? 'text-white' : 'text-slate-400'}`}>
+                  {achievement.title}
+                </h4>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {achievement.description}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
 

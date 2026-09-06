@@ -34,7 +34,7 @@ export const HelpView: React.FC = () => {
     {
       category: "Mining Logic",
       question: "How do I claim points and keep my mining rig active?",
-      answer: "Your mining rig operates 24/7 on BSC cloud nodes. You can claim accumulated rewards at any time using the 'Claim Points' button on your Dashboard. All claims and upgrades are securely recorded to Firestore and logged in your Audit History."
+      answer: "Your mining rig operates 24/7 on BSC cloud nodes. You can claim accumulated rewards at any time using the 'Claim Points' button on your Dashboard. All claims and upgrades are securely recorded and logged in your Audit History."
     }
   ];
 
