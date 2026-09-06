@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Shield, Zap, Wallet, Globe, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
@@ -18,6 +18,46 @@ export const Header: React.FC<HeaderProps> = ({
   onConnectWallet,
   onDisconnectWallet,
 }) => {
+  const [latency, setLatency] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const pingBSC = async () => {
+      try {
+        const start = performance.now();
+        await fetch('https://bsc-dataseed.binance.org/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "net_version", params: [], id: 1 })
+        });
+        const end = performance.now();
+        if (mounted) setLatency(Math.round(end - start));
+      } catch (err) {
+        if (mounted) setLatency(-1);
+      }
+    };
+
+    pingBSC();
+    const interval = setInterval(pingBSC, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const getLatencyColor = () => {
+    if (latency === null) return 'bg-amber-400';
+    if (latency === -1 || latency >= 800) return 'bg-red-500';
+    if (latency >= 300) return 'bg-amber-400';
+    return 'bg-[#00C087]';
+  };
+
+  const getLatencyText = () => {
+    if (latency === null) return 'Pinging...';
+    if (latency === -1) return 'Offline';
+    return `${latency}ms`;
+  };
+
   return (
     <header className="h-[64px] border-b border-white/10 flex items-center justify-between px-4 sm:px-6 bg-[#0B0E11]/80 backdrop-blur-xl sticky top-0 z-40">
       <div className="flex items-center gap-3">
@@ -28,9 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="hidden sm:flex items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-          <div className="w-2 h-2 rounded-full bg-[#00C087] animate-pulse"></div>
-          <span className="text-xs font-medium text-slate-200">BSC Mainnet (56)</span>
+        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md" title={`RPC Latency: ${getLatencyText()}`}>
+          <div className={`w-2 h-2 rounded-full ${getLatencyColor()} ${latency !== null && latency < 300 ? 'animate-pulse' : ''}`}></div>
+          <span className="text-xs font-medium text-slate-200">BSC Mainnet ({getLatencyText()})</span>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
           <Globe className="w-3.5 h-3.5 text-[#F3BA2F]" />
