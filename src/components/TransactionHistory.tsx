@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { TransactionRecord, UserProfile } from '../types';
 import { getTransactionHistory } from '../services/firebase';
 import { History, CheckCircle2, Clock, XCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface TransactionHistoryProps {
   user: UserProfile;
@@ -10,12 +12,21 @@ interface TransactionHistoryProps {
 export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) => {
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showSuccess } = useInitiativeFeedback();
 
-  const fetchTxs = async () => {
+  const fetchTxs = async (manual = false) => {
     try {
       setLoading(true);
       const records = await getTransactionHistory(user.email || user.walletAddress);
       setTransactions(records);
+      if (manual) {
+        showSuccess({
+          initiativeName: 'On-Chain Audit Records',
+          title: 'Audit Ledger Refreshed',
+          badge: `${records.length} Records`,
+          description: `Successfully synchronized ${records.length} on-chain BSC transaction records with Firestore.`,
+        });
+      }
     } catch (e) {
       console.error("Failed to load transaction history:", e);
     } finally {
@@ -24,7 +35,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) 
   };
 
   useEffect(() => {
-    fetchTxs();
+    fetchTxs(false);
   }, [user]);
 
   return (
@@ -39,13 +50,15 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({ user }) 
             Verified blockchain interaction logs for your account ({user.email})
           </p>
         </div>
-        <button
-          onClick={fetchTxs}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1E2329] border border-[rgba(255,255,255,0.08)] rounded text-xs text-[#848E9C] hover:text-white transition"
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => fetchTxs(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#1E2329] border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-[#848E9C] hover:text-white transition cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
-        </button>
+        </motion.button>
       </div>
 
       <div className="bg-[#1E2329] rounded-xl border border-[rgba(255,255,255,0.08)] overflow-hidden shadow-xl">

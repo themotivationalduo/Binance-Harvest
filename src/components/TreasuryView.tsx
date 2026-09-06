@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers } from 'lucide-react';
 import { TREASURY_WALLET, getLiveTreasuryStats } from '../services/web3';
+import { motion } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface TreasuryViewProps {
   user: UserProfile;
@@ -11,6 +13,7 @@ interface TreasuryViewProps {
 export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) => {
   const [copied, setCopied] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const { showSuccess, showFailed, showCopySuccess } = useInitiativeFeedback();
   const [treasuryStats, setTreasuryStats] = useState<{
     treasuryBnb: string;
     treasuryBnbFormatted: string;
@@ -35,6 +38,33 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
     }
   };
 
+  const handleManualSync = async () => {
+    try {
+      setLoadingStats(true);
+      const stats = await getLiveTreasuryStats();
+      setTreasuryStats(stats);
+      showSuccess({
+        initiativeName: 'BSC Treasury Ledger',
+        title: 'Node Synchronized!',
+        badge: `Block #${stats.blockNumber > 0 ? stats.blockNumber.toLocaleString() : 'Live'}`,
+        description: 'Successfully verified live Binance Smart Chain Mainnet ledger state and treasury balance.',
+        details: [
+          { label: 'Treasury Balance', value: `${stats.treasuryBnbFormatted} BNB` },
+          { label: 'Gas Price', value: `${stats.gasPriceGwei} Gwei` },
+          { label: 'Network', value: 'BSC Mainnet (BEP-20)' },
+        ],
+      });
+    } catch (e) {
+      showFailed({
+        initiativeName: 'BSC Treasury Ledger',
+        title: 'Node Sync Failed',
+        description: 'Unable to reach public BSC RPC endpoint. Retrying in background...',
+      });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   useEffect(() => {
     loadOnChainStats();
     const interval = setInterval(loadOnChainStats, 30000);
@@ -45,6 +75,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
     navigator.clipboard.writeText(TREASURY_WALLET);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    showCopySuccess('Treasury Wallet Address');
   };
 
   return (
@@ -57,14 +88,16 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
             <Landmark className="w-3.5 h-3.5 text-amber-400" />
             Live On-Chain Smart Treasury
           </span>
-          <button
-            onClick={loadOnChainStats}
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={handleManualSync}
             disabled={loadingStats}
-            className="flex items-center gap-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs text-slate-300 transition active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs text-slate-300 transition cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loadingStats ? 'animate-spin' : ''}`} />
             <span>Sync BSC Node</span>
-          </button>
+          </motion.button>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
           Official Treasury & Settlement Contract

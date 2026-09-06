@@ -4,6 +4,8 @@ import { auth, getUserProfile, updateUserProfileFields } from '../services/fireb
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { UserProfile } from '../types';
 import { connectWallet } from '../services/web3';
+import { motion, AnimatePresence } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { showSuccess, showFailed } = useInitiativeFeedback();
 
   if (!isOpen) return null;
 
@@ -34,17 +37,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setError(null);
 
     if (!email || !password) {
-      setError("Please fill in all required fields.");
+      const err = "Please fill in all required fields.";
+      setError(err);
+      showFailed({
+        initiativeName: 'Authentication Protocol',
+        title: 'Missing Fields',
+        description: err,
+      });
       return;
     }
 
     if (isRegister) {
       if (password !== confirmPassword) {
-        setError("Passwords do not match.");
+        const err = "Passwords do not match.";
+        setError(err);
+        showFailed({
+          initiativeName: 'Registration Protocol',
+          title: 'Password Mismatch',
+          description: 'The confirmation password does not match your entered password.',
+        });
         return;
       }
       if (!acceptedTerms) {
-        setError("You must accept the Terms and Conditions to register.");
+        const err = "You must accept the terms and conditions to register.";
+        setError(err);
+        showFailed({
+          initiativeName: 'Registration Protocol',
+          title: 'Terms Acceptance Required',
+          description: 'Please review and accept the protocol terms before creating your miner account.',
+        });
         return;
       }
     }
@@ -76,9 +97,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const profile = await getUserProfile(userEmail);
       onLoginSuccess(profile);
       onClose();
+
+      showSuccess({
+        initiativeName: isRegister ? 'Account Registration' : 'Miner Authentication',
+        title: isRegister ? 'Miner Account Created!' : 'Welcome Back!',
+        badge: `Tier ${profile.currentTier} Miner`,
+        description: `Successfully signed in as ${userEmail}. Your cloud hashpower and balance are loaded.`,
+        details: [
+          { label: 'Account', value: userEmail },
+          { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
+          { label: 'Mined Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
+        ],
+      });
     } catch (err: any) {
       console.error("Auth error:", err);
-      setError(err?.message || "Authentication failed. Please check credentials.");
+      const errMsg = err?.message || "Authentication failed. Please check credentials.";
+      setError(errMsg);
+      showFailed({
+        initiativeName: isRegister ? 'Account Registration' : 'Miner Authentication',
+        title: isRegister ? 'Registration Failed' : 'Sign-In Failed',
+        description: errMsg,
+      });
     } finally {
       setLoading(false);
     }
@@ -94,14 +133,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         await updateUserProfileFields(res.address, { walletAddress: res.address });
         onLoginSuccess({ ...profile, walletAddress: res.address });
         onClose();
+
+        showSuccess({
+          initiativeName: 'Web3 Wallet Sign-In',
+          title: 'Wallet Connected!',
+          badge: 'BSC Mainnet',
+          description: `Successfully authenticated with Binance Smart Chain wallet ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}.`,
+          details: [
+            { label: 'Wallet Address', value: `${res.address.substring(0, 10)}...` },
+            { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
+            { label: 'Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
+          ],
+        });
       }
     } catch (err: any) {
       console.error("Web3 login error:", err);
-      if (err?.message?.includes("WEB3_WALLET_NOT_FOUND")) {
-        setError("No Web3 wallet detected. Please install MetaMask, Trust Wallet, or open this app in your Web3 browser.");
-      } else {
-        setError(err?.message || "Failed to authenticate with Web3 wallet.");
-      }
+      const errMsg = err?.message?.includes("WEB3_WALLET_NOT_FOUND")
+        ? "No Web3 wallet detected. Please install MetaMask, Trust Wallet, or open this app in your Web3 browser."
+        : (err?.message || "Failed to authenticate with Web3 wallet.");
+      setError(errMsg);
+      showFailed({
+        initiativeName: 'Web3 Wallet Sign-In',
+        title: 'Web3 Authentication Failed',
+        description: errMsg,
+        actionLabel: 'Try Again',
+        onAction: () => handleConnectWeb3Login(),
+      });
     } finally {
       setLoading(false);
     }

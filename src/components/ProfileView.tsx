@@ -2,6 +2,8 @@ import React from 'react';
 import { UserProfile } from '../types';
 import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw } from 'lucide-react';
 import { switchToBSC, TREASURY_WALLET } from '../services/web3';
+import { motion } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -23,11 +25,34 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenAuth,
 }) => {
   const [switchingNetwork, setSwitchingNetwork] = React.useState(false);
+  const { showSuccess, showFailed } = useInitiativeFeedback();
 
   const handleSwitch = async () => {
     setSwitchingNetwork(true);
-    await switchToBSC();
+    const success = await switchToBSC();
     setSwitchingNetwork(false);
+
+    if (success) {
+      showSuccess({
+        initiativeName: 'Network Synchronization',
+        title: 'Binance Smart Chain Active!',
+        badge: 'Chain ID 56',
+        description: 'Successfully switched or verified your active wallet connection to Binance Smart Chain Mainnet (BEP-20).',
+        details: [
+          { label: 'Network', value: 'BSC Mainnet' },
+          { label: 'RPC Endpoint', value: 'https://bsc-dataseed.binance.org/' },
+          { label: 'Native Currency', value: 'BNB' },
+        ],
+      });
+    } else {
+      showFailed({
+        initiativeName: 'Network Synchronization',
+        title: 'Network Switch Rejected',
+        description: 'Could not switch wallet to Binance Smart Chain Mainnet. Please approve the network switch prompt in your Web3 wallet.',
+        actionLabel: 'Try Switch Again',
+        onAction: () => handleSwitch(),
+      });
+    }
   };
 
   return (

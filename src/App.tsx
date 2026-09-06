@@ -12,6 +12,7 @@ import { AuthModal } from './components/AuthModal';
 import { UserProfile } from './types';
 import { fetchLiveBNBPrice, connectWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
 import { getUserProfile, updateUserProfileFields } from './services/firebase';
+import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -21,6 +22,7 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+  const { showSuccess, showFailed } = useInitiativeFeedback();
   
   // Entire user account starts afresh (Tier 1, 0 points)
   const [user, setUser] = useState<UserProfile>({
@@ -117,14 +119,34 @@ export default function App() {
         syncWalletBalance(res.address);
         const profile = await updateUserProfileFields(user.email, { walletAddress: res.address });
         setUser(profile);
+
+        showSuccess({
+          initiativeName: 'Web3 Wallet Initialization',
+          title: 'Binance Smart Chain Connected!',
+          badge: 'Chain ID 56',
+          description: `Successfully linked BSC Web3 wallet ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}.`,
+          details: [
+            { label: 'Wallet', value: `${res.address.substring(0, 10)}...` },
+            { label: 'Network', value: 'Binance Smart Chain' },
+            { label: 'Status', value: 'Ready for On-Chain Transactions' },
+          ],
+        });
       }
     } catch (err: any) {
       console.error("Wallet connection failed:", err);
-      if (err?.message?.includes("WEB3_WALLET_NOT_FOUND")) {
-        setWalletError("MetaMask or a Web3 provider was not detected in this browser frame. To execute real on-chain BSC transactions, please install MetaMask or open this application in a new browser tab with your Web3 wallet active.");
-      } else {
-        setWalletError(err?.message || "Failed to connect Web3 wallet. Please make sure you are on Binance Smart Chain Mainnet.");
-      }
+      const isNotFound = err?.message?.includes("WEB3_WALLET_NOT_FOUND");
+      const errDetail = isNotFound
+        ? "MetaMask or a Web3 provider was not detected in this browser frame. To execute real on-chain BSC transactions, please install MetaMask or open this application in a new browser tab with your Web3 wallet active."
+        : (err?.message || "Failed to connect Web3 wallet. Please make sure you are on Binance Smart Chain Mainnet.");
+      setWalletError(errDetail);
+
+      showFailed({
+        initiativeName: 'Web3 Wallet Initialization',
+        title: 'Connection Failed',
+        description: errDetail,
+        actionLabel: 'Retry Connection',
+        onAction: () => handleConnectWallet(),
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -134,6 +156,12 @@ export default function App() {
     setWalletAddress(null);
     setWalletBalance('0.0000');
     localStorage.removeItem('binance_harvest_wallet');
+
+    showSuccess({
+      initiativeName: 'Web3 Wallet Session',
+      title: 'Wallet Disconnected',
+      description: 'Your Web3 wallet has been safely disconnected from this session.',
+    });
   };
 
   const handleUpdateUser = async (updatedFields: Partial<UserProfile>) => {

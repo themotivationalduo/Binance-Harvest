@@ -4,6 +4,8 @@ import { Zap, ShieldCheck, CheckCircle2, ArrowUpRight, Loader2, Sparkles } from 
 import { sendBNBTransaction } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
+import { motion, AnimatePresence } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface TiersViewProps {
   user: UserProfile;
@@ -23,16 +25,37 @@ const TIERS: TierInfo[] = [
 export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUser }) => {
   const [upgradingTier, setUpgradingTier] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { showSuccess, showFailed } = useInitiativeFeedback();
 
   const handleUpgrade = async (targetTier: number) => {
     setMessage(null);
+    const targetTierInfo = TIERS.find((t) => t.tier === targetTier);
+
     if (targetTier !== user.currentTier + 1) {
-      setMessage({ type: 'error', text: 'You must upgrade tiers sequentially.' });
+      const err = 'You must upgrade tiers sequentially.';
+      setMessage({ type: 'error', text: err });
+      showFailed({
+        initiativeName: 'Tier Upgrade Protocol',
+        title: 'Sequential Upgrade Required',
+        badge: `Active: Tier ${user.currentTier}`,
+        description: `Mining rigs must be upgraded in order. Please upgrade to Tier ${user.currentTier + 1} to unlock subsequent power levels.`,
+        details: [
+          { label: 'Current Tier', value: `Tier ${user.currentTier}` },
+          { label: 'Required Next Tier', value: `Tier ${user.currentTier + 1}` },
+        ],
+      });
       return;
     }
 
     if (!user.walletAddress) {
-      setMessage({ type: 'error', text: 'Please connect your MetaMask wallet first.' });
+      const err = 'Please connect your MetaMask wallet first.';
+      setMessage({ type: 'error', text: err });
+      showFailed({
+        initiativeName: 'Tier Upgrade Protocol',
+        title: 'MetaMask Wallet Required',
+        description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain upgrade transaction.',
+        actionLabel: 'Connect Wallet',
+      });
       return;
     }
 
@@ -50,11 +73,12 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
 
       // $1 USD upgrade fee sent to Treasury Wallet
       const { txHash } = await sendBNBTransaction(signer, 1.00, bnbPrice);
+      const bnbAmount = Number((1.00 / (bnbPrice || 600)).toFixed(5));
 
       // Record transaction in audit history
       await addTransactionRecord(user.email || user.walletAddress, {
         type: 'UPGRADE',
-        amountBNB: Number((1.00 / (bnbPrice || 600)).toFixed(5)),
+        amountBNB: bnbAmount,
         amountUSD: 1.00,
         txHash: txHash,
         status: 'SUCCESS',
@@ -65,18 +89,49 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         currentTier: targetTier,
       });
 
+      const succ = `Successfully upgraded to Tier ${targetTier}! TxHash: ${txHash.substring(0, 10)}...`;
       setMessage({
         type: 'success',
-        text: `Successfully upgraded to Tier ${targetTier}! TxHash: ${txHash.substring(0, 10)}...`,
+        text: succ,
       });
       setUpgradingTier(null);
+
+      // Trigger glorious Success Animation
+      showSuccess({
+        initiativeName: 'Mining Rig Activation',
+        title: `Tier ${targetTier} Activated!`,
+        badge: `Tier ${targetTier}`,
+        description: `Congratulations! Your cloud mining power has doubled. Your daily yield is now ${targetTierInfo?.pointsPerDay.toLocaleString()} PTS per day!`,
+        txHash: txHash,
+        details: [
+          { label: 'Upgraded Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
+          { label: 'Upgrade Cost', value: `$1.00 USD (${bnbAmount} BNB)` },
+          { label: 'New Daily Yield', value: `${targetTierInfo?.pointsPerDay.toLocaleString()} PTS/day` },
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+        ],
+      });
     } catch (err: any) {
       console.error("Upgrade error:", err);
+      const errReason = err?.reason || err?.message || 'Transaction rejected or failed.';
       setMessage({
         type: 'error',
-        text: err?.reason || err?.message || 'Transaction rejected or failed.',
+        text: errReason,
       });
       setUpgradingTier(null);
+
+      // Trigger Failed Animation
+      showFailed({
+        initiativeName: 'Tier Upgrade Protocol',
+        title: 'Upgrade Transaction Failed',
+        description: errReason,
+        actionLabel: 'Retry Upgrade',
+        onAction: () => handleUpgrade(targetTier),
+        details: [
+          { label: 'Target Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
+          { label: 'Required Fee', value: `$1.00 USD (${(1.00 / bnbPrice).toFixed(5)} BNB)` },
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+        ],
+      });
     }
   };
 
@@ -99,13 +154,28 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         </p>
       </div>
 
-      {message && (
-        <div className={`p-4 rounded-2xl border text-sm flex items-center gap-3 ${
-          message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
-        }`}>
-          <span>{message.text}</span>
-        </div>
-      )}
+      {/* Inline Notifications */}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={
+              message.type === 'success'
+                ? { opacity: 1, y: 0 }
+                : { opacity: 1, x: [-8, 8, -6, 6, -3, 3, 0] }
+            }
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35 }}
+            className={`p-4 rounded-2xl border text-sm flex items-center gap-3 shadow-lg backdrop-blur-md ${
+              message.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-emerald-500/10'
+                : 'bg-red-500/15 border-red-500/30 text-red-300 shadow-red-500/10'
+            }`}
+          >
+            <span>{message.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tiers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -164,23 +234,25 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
                     <span>Unlocked</span>
                   </div>
                 ) : isNext ? (
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => handleUpgrade(t.tier)}
                     disabled={upgradingTier !== null}
-                    className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition active:scale-95 disabled:opacity-50"
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition disabled:opacity-50 cursor-pointer"
                   >
                     {upgradingTier === t.tier ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Signing ($1)...</span>
+                        <span>Signing on BSC ($1)...</span>
                       </>
                     ) : (
                       <>
-                        <span>Upgrade Now ($1)</span>
+                        <span>Upgrade Now ($1.00)</span>
                         <ArrowUpRight className="w-4 h-4" />
                       </>
                     )}
-                  </button>
+                  </motion.button>
                 ) : (
                   <div className="w-full py-3 rounded-2xl bg-slate-800/50 border border-white/5 text-slate-500 font-medium text-center text-sm">
                     Upgrade previous tier first

