@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, ADMIN_WALLETS } from '../types';
 import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers } from 'lucide-react';
 import { TREASURY_WALLET, getLiveTreasuryStats } from '../services/web3';
 import { motion } from 'motion/react';
@@ -26,6 +26,8 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
     gasPriceGwei: '3.0',
   });
 
+  const isAdmin = user.walletAddress && ADMIN_WALLETS.includes(user.walletAddress.toLowerCase());
+
   const loadOnChainStats = async () => {
     try {
       setLoadingStats(true);
@@ -43,13 +45,15 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
       setLoadingStats(true);
       const stats = await getLiveTreasuryStats();
       setTreasuryStats(stats);
+      
+      const balanceStr = isAdmin ? `${stats.treasuryBnbFormatted} BNB` : '•••• BNB (Protected)';
       showSuccess({
         initiativeName: 'BSC Treasury Ledger',
         title: 'Node Synchronized!',
         badge: `Block #${stats.blockNumber > 0 ? stats.blockNumber.toLocaleString() : 'Live'}`,
         description: 'Successfully verified live Binance Smart Chain Mainnet ledger state and treasury balance.',
         details: [
-          { label: 'Treasury Balance', value: `${stats.treasuryBnbFormatted} BNB` },
+          { label: 'Treasury Balance', value: balanceStr },
           { label: 'Gas Price', value: `${stats.gasPriceGwei} Gwei` },
           { label: 'Network', value: 'BSC Mainnet (BEP-20)' },
         ],
@@ -109,17 +113,33 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
 
       {/* Live On-Chain Node Status Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-5 rounded-2xl relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1 relative z-10">
             <span>Treasury On-Chain Balance</span>
             <Activity className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-xl font-bold font-mono text-white">
-            {treasuryStats.treasuryBnbFormatted} BNB
-          </div>
-          <div className="text-[11px] text-amber-400/90 font-mono mt-0.5">
-            ≈ ${(Number(treasuryStats.treasuryBnb || 0) * (bnbPrice || 750)).toFixed(2)} USD
-          </div>
+          {isAdmin ? (
+            <div className="relative z-10">
+              <div className="text-xl font-bold font-mono text-white">
+                {treasuryStats.treasuryBnbFormatted} BNB
+              </div>
+              <div className="text-[11px] text-amber-400/90 font-mono mt-0.5">
+                ≈ ${(Number(treasuryStats.treasuryBnb || 0) * (bnbPrice || 750)).toFixed(2)} USD
+              </div>
+            </div>
+          ) : (
+            <div className="relative z-10">
+              <div className="text-sm font-bold font-mono text-slate-400 flex items-center gap-1.5 mt-1.5">
+                <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] rounded-lg font-sans">
+                  ADMINS ONLY
+                </span>
+                <span className="text-slate-500">•••• BNB</span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-1">
+                Balance hidden for security
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
