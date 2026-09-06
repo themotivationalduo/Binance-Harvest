@@ -1,0 +1,7 @@
+{
+  "name": "BinanceHarvest",
+  "description": "Decentralized BSC crypto mining platform with tiered rewards, live BNB pricing, and secure treasury transactions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

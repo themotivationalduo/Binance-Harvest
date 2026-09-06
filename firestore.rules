@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User profile state
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.email is string
+        && request.resource.data.totalPoints is number
+        && request.resource.data.currentTier is number;
+    }
+
+    // Transaction settlement records
+    match /transactions/{txId} {
+      allow read: if true;
+      allow create: if request.resource.data.amountUSD is number
+        && request.resource.data.type is string;
+    }
+  }
+}

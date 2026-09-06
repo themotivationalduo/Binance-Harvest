@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --binance-yellow: #F3BA2F;
+  --bg-primary: #0B0E11;
+  --bg-secondary: #1E2329;
+  --bg-card: #2B3139;
+  --line: rgba(255, 255, 255, 0.08);
+  --success: #00C087;
+  --text-muted: #848E9C;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: #EAECEF;
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.mono {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* Custom smooth scrollbar for mirror glass containers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(243, 186, 47, 0.35);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(243, 186, 47, 0.7);
+}
+
+
