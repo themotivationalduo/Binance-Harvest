@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { UserProfile, TransactionRecord } from '../types';
-import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw, Flame, Sparkles, Medal } from 'lucide-react';
+import { User, Wallet, Globe, Shield, CheckCircle2, RefreshCw, Flame, Sparkles, Medal, Bell, BellOff, Info } from 'lucide-react';
 import { switchToBSC, TREASURY_WALLET } from '../services/web3';
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { getTransactionHistory } from '../services/firebase';
 import { ACHIEVEMENTS_DATA, evaluateAchievements } from '../lib/achievements';
+import { 
+  requestNotificationPermission, 
+  isNotificationSupported, 
+  hasNotificationPermission, 
+  sendPushNotification 
+} from '../services/notifications';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -29,6 +35,40 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [switchingNetwork, setSwitchingNetwork] = useState(false);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const { showSuccess, showFailed } = useInitiativeFeedback();
+  const [notificationState, setNotificationState] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
+
+  useEffect(() => {
+    if (!isNotificationSupported()) {
+      setNotificationState('unsupported');
+    } else {
+      setNotificationState(Notification.permission);
+    }
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    if (notificationState === 'unsupported') return;
+    
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      setNotificationState('granted');
+      sendPushNotification("Notifications Activated! 🔔", {
+        body: "BinanceHarvest will now notify you when your mining session completes or when you level up!",
+      });
+      showSuccess({
+        initiativeName: 'Notification Engine',
+        title: 'Push Notifications Enabled',
+        badge: 'PUSH SUCCESS',
+        description: 'You will now receive dynamic browser alerts when your mining cycle finishes or when your miner reaches a new milestone tier.',
+      });
+    } else {
+      setNotificationState('denied');
+      showFailed({
+        initiativeName: 'Notification Engine',
+        title: 'Permission Denied',
+        description: 'Please enable notifications manually inside your browser address bar settings to receive mining session completion alerts.',
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -144,6 +184,62 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             >
               Connect MetaMask Now
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Push Notifications Configuration */}
+      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+              notificationState === 'granted' 
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                : 'bg-slate-950/60 text-slate-400 border-white/10'
+            }`}>
+              {notificationState === 'granted' ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                Browser Push Notifications
+                {notificationState === 'granted' && (
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    ACTIVE
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Stay updated with real-time browser alerts when your mining cycle finishes or when your miner levels up.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleToggleNotifications}
+            disabled={notificationState === 'unsupported'}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-2 self-start sm:self-auto shrink-0 ${
+              notificationState === 'granted'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 cursor-default'
+                : notificationState === 'unsupported'
+                ? 'bg-slate-950/40 text-slate-600 border-white/5 cursor-not-allowed'
+                : 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black border-transparent shadow-lg shadow-[#F3BA2F]/10 active:scale-95'
+            }`}
+          >
+            {notificationState === 'granted' ? (
+              <span>Notifications Enabled</span>
+            ) : notificationState === 'denied' ? (
+              <span>Permission Blocked</span>
+            ) : notificationState === 'unsupported' ? (
+              <span>Unsupported Browser</span>
+            ) : (
+              <span>Enable Browser Alerts</span>
+            )}
+          </button>
+        </div>
+
+        {notificationState === 'denied' && (
+          <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 flex items-center gap-2">
+            <Info className="w-4 h-4 text-red-400 shrink-0" />
+            <span>It looks like notification permissions are blocked. Please click the lock or settings icon next to the URL in your browser address bar to allow notifications for this application.</span>
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { DailyLoginStreak } from './DailyLoginStreak';
+import { sendPushNotification } from '../services/notifications';
 
 interface DashboardProps {
   user: UserProfile;
@@ -50,6 +51,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
     
     return () => clearInterval(interval);
   }, [user.minerStartTimestamp, user.createdAt]);
+
+  // Push notification alert when mining finishes
+  React.useEffect(() => {
+    const startTimeStr = user.minerStartTimestamp || user.createdAt;
+    const minerCycleDurationMs = 24 * 60 * 60 * 1000;
+    
+    if (elapsedMs >= minerCycleDurationMs) {
+      const notifiedKey = `notified_miner_end_${startTimeStr}`;
+      const alreadyNotified = localStorage.getItem(notifiedKey);
+      if (!alreadyNotified) {
+        localStorage.setItem(notifiedKey, 'true');
+        sendPushNotification("Mining Yield Ready to Harvest! ⚡", {
+          body: `Your Tier ${user.currentTier} ASIC cluster has completed its 24-hour cycle. Claim your yield now!`,
+        });
+      }
+    }
+  }, [elapsedMs, user.minerStartTimestamp, user.createdAt, user.currentTier]);
 
   const minerCycleDurationMs = 24 * 60 * 60 * 1000;
   const isMinerEnded = elapsedMs >= minerCycleDurationMs;

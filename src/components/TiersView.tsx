@@ -6,6 +6,7 @@ import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { sendPushNotification } from '../services/notifications';
 
 interface TiersViewProps {
   user: UserProfile;
@@ -87,6 +88,10 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
       // Success -> Increment tier
       await onUpdateUser({
         currentTier: targetTier,
+      });
+
+      sendPushNotification("Mining Rig Upgraded! 🚀", {
+        body: `Congratulations! Your cloud miner upgraded to ${targetTierInfo?.name || `Tier ${targetTier}`}. Your daily points are now doubled!`,
       });
 
       const succ = `Successfully upgraded to Tier ${targetTier}! TxHash: ${txHash.substring(0, 10)}...`;
