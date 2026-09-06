@@ -107,7 +107,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           Official Treasury & Settlement Contract
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          All tier upgrade payments ($1) and withdrawal verification fees ($5) are broadcast directly to the Binance Smart Chain Treasury wallet.
+          All tier upgrade payments and withdrawal verification fees are broadcast directly to the Binance Smart Chain Treasury wallet.
         </p>
       </div>
 
