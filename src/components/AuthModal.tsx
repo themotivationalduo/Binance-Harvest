@@ -123,8 +123,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Modal Header */}
         <div className="p-4 sm:p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-[#F3BA2F] rounded-xl flex items-center justify-center shadow-lg shadow-[#F3BA2F]/25 text-black shrink-0">
-              <Wallet className="w-5.5 h-5.5" />
+            <div className="w-10 h-10 text-[#F3BA2F] flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-9 h-9 filter drop-shadow-[0_2px_8px_rgba(243,186,47,0.3)]">
+                <path d="M16.622 10.076L12 5.454 7.378 10.076H3.344L12 1.419l8.656 8.657h-4.034zM12 18.546l4.622-4.622h4.034L12 22.58l-8.656-8.656h4.034L12 18.546zM13.931 12L12 10.069 10.069 12 12 13.931 13.931 12zM20.656 12l-2.011-2.012 2.011-2.012L22.668 12l-2.012 2.012L20.656 12zM3.344 12l2.012-2.012L3.344 7.976 1.332 12l2.012 2.012L3.344 12z"/>
+              </svg>
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
