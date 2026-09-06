@@ -121,21 +121,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#00C087]/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
         {/* Modal Header */}
-        <div className="p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-[#F3BA2F] rounded-2xl flex items-center justify-center shadow-lg shadow-[#F3BA2F]/25 text-black">
-              <Wallet className="w-6 h-6" />
+        <div className="p-4 sm:p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 bg-[#F3BA2F] rounded-xl flex items-center justify-center shadow-lg shadow-[#F3BA2F]/25 text-black shrink-0">
+              <Wallet className="w-5.5 h-5.5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate">
                   Web3 Authentication
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00C087]/20 text-[#00C087] border border-[#00C087]/30">
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#00C087]/20 text-[#00C087] border border-[#00C087]/30 shrink-0">
                   On-Chain Only
                 </span>
               </div>
-              <p className="text-xs text-[#848E9C]">
+              <p className="text-[10px] sm:text-xs text-[#848E9C] truncate">
                 Binance Smart Chain (BEP-20) Decentralized ID
               </p>
             </div>
@@ -144,7 +144,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {isClosable && (
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-[#848E9C] hover:text-white hover:bg-white/10 transition"
+              className="p-1.5 rounded-xl text-[#848E9C] hover:text-white hover:bg-white/10 transition shrink-0"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -153,7 +153,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5 relative z-10 max-h-[calc(85vh-120px)] overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-6 space-y-5 relative z-10 max-h-[calc(85vh-120px)] overflow-y-auto custom-scrollbar">
           
           {/* Error Message */}
           <AnimatePresence>
@@ -234,11 +234,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Mobile / Fallback Helper */}
           <div className="pt-2 border-t border-white/10 space-y-3">
-            <div className="flex items-center justify-between text-xs text-[#848E9C]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-[#848E9C]">
               <span>Opening on mobile?</span>
               <button
                 onClick={handleCopyAppUrl}
-                className="flex items-center gap-1.5 text-amber-400 hover:underline cursor-pointer font-medium"
+                className="flex items-center gap-1.5 text-amber-400 hover:underline cursor-pointer font-medium self-start sm:self-auto"
               >
                 {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#00C087]" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedUrl ? 'Copied to Clipboard!' : 'Copy App URL for dApp Browser'}</span>

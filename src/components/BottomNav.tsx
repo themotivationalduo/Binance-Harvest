@@ -10,33 +10,6 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, isAdmin }) => {
-  const [isVisible, setIsVisible] = useState(true);
-
-  useEffect(() => {
-    let scrollTimeout: any = null;
-
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      if (currentScrollY > 20) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
-
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        setIsVisible(true);
-      }, 400);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-    };
-  }, []);
-
   const navItems = [
     { id: 'dashboard' as ActiveTab, label: 'Mining', icon: Cpu },
     { id: 'tiers' as ActiveTab, label: 'Tiers', icon: Zap },
@@ -52,9 +25,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, i
 
   return (
     <div
-      className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[96vw] transition-all duration-300 transform ${
-        isVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-24 opacity-0 pointer-events-none'
-      }`}
+      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[96vw] transition-all duration-300 transform translate-y-0 opacity-100 pointer-events-auto"
     >
       <nav className="flex items-center justify-between w-full sm:justify-center sm:gap-4 overflow-hidden py-2 px-1">
         {navItems.map((item) => {
