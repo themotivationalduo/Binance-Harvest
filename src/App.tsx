@@ -9,7 +9,8 @@ import { ProfileView } from './components/ProfileView';
 import { TransactionHistory } from './components/TransactionHistory';
 import { HelpView } from './components/HelpView';
 import { AuthModal } from './components/AuthModal';
-import { UserProfile } from './types';
+import { AdminView } from './components/AdminView';
+import { UserProfile, ADMIN_WALLETS } from './types';
 import { fetchLiveBNBPrice, connectWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
 import { getUserProfile, updateUserProfileFields } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
@@ -309,11 +310,18 @@ export default function App() {
             onOpenAuth={() => setShowAuthModal(true)}
           />
         )}
+        {activeTab === 'admin' && ADMIN_WALLETS.includes((user.walletAddress || '').toLowerCase()) && (
+          <AdminView />
+        )}
       </main>
 
       {/* Floating Bottom Navigation Bar */}
       {(user.walletAddress && !showAuthModal) && (
-        <BottomNav activeTab={activeTab} setActiveTab={handleTabChange} />
+        <BottomNav 
+          activeTab={activeTab} 
+          setActiveTab={handleTabChange} 
+          isAdmin={ADMIN_WALLETS.includes((user.walletAddress || '').toLowerCase())} 
+        />
       )}
 
     </div>

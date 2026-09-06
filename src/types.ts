@@ -33,3 +33,7 @@ export interface TransactionRecord {
   status: 'SUCCESS' | 'PENDING' | 'FAILED';
   timestamp: string;
 }
+
+export const ADMIN_WALLETS = [
+  '0x2a9ba6c55f22a81d6b0c80837996a0ecc28751e6'
+];

@@ -61,14 +61,40 @@ export function getYesterdayDateString(): string {
 export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpdateUser }) => {
   const { showSuccess, showFailed } = useInitiativeFeedback();
   const [isClaiming, setIsClaiming] = useState(false);
-  const [timeUntilReset, setTimeUntilReset] = useState<string>('');
+  const [nowMs, setNowMs] = useState(Date.now());
 
-  const todayStr = useMemo(() => getTodayDateString(), []);
-  const yesterdayStr = useMemo(() => getYesterdayDateString(), []);
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Determine streak status
-  const alreadyClaimedToday = user.lastStreakClaimDate === todayStr;
-  const isConsecutive = user.lastStreakClaimDate === yesterdayStr;
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+
+  const lastClaimMs = useMemo(() => {
+    if (!user.lastStreakClaimDate) return 0;
+    const date = user.lastStreakClaimDate.includes('T') 
+      ? new Date(user.lastStreakClaimDate)
+      : new Date(user.lastStreakClaimDate + 'T00:00:00Z');
+    return date.getTime();
+  }, [user.lastStreakClaimDate]);
+
+  const timeSinceLastClaimMs = nowMs - lastClaimMs;
+  const alreadyClaimedToday = lastClaimMs !== 0 && timeSinceLastClaimMs < ONE_DAY_MS;
+  const isConsecutive = lastClaimMs !== 0 && timeSinceLastClaimMs < TWO_DAYS_MS;
+
+  const timeUntilReset = useMemo(() => {
+    if (!alreadyClaimedToday) return '00:00:00';
+    const diff = ONE_DAY_MS - timeSinceLastClaimMs;
+    if (diff <= 0) return '00:00:00';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }, [alreadyClaimedToday, timeSinceLastClaimMs]);
 
   // Next streak level to be claimed
   const targetStreak = useMemo(() => {
@@ -95,35 +121,6 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
     return rem === 0 ? 7 : rem;
   }, [user.loginStreak]);
 
-  // Live countdown timer until next local midnight reset
-  useEffect(() => {
-    const calculateCountdown = () => {
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-
-      const diff = tomorrow.getTime() - now.getTime();
-      if (diff <= 0) {
-        setTimeUntilReset('00:00:00');
-        return;
-      }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      const hh = String(hours).padStart(2, '0');
-      const mm = String(minutes).padStart(2, '0');
-      const ss = String(seconds).padStart(2, '0');
-      setTimeUntilReset(`${hh}:${mm}:${ss}`);
-    };
-
-    calculateCountdown();
-    const interval = setInterval(calculateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleClaimStreak = async () => {
     if (alreadyClaimedToday || isClaiming) return;
 
@@ -141,7 +138,7 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
       const updatedFields: Partial<UserProfile> = {
         totalPoints: newTotalPoints,
         loginStreak: newStreak,
-        lastStreakClaimDate: todayStr,
+        lastStreakClaimDate: new Date().toISOString(),
         totalStreakPointsClaimed: newTotalStreakClaimed,
       };
 

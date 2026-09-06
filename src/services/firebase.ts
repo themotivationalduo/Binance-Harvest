@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, query, where, orderBy, Firestore, setLogLevel } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, deleteDoc, query, where, orderBy, Firestore, setLogLevel } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, Auth } from 'firebase/auth';
 import { UserProfile, TransactionRecord } from '../types';
 import { TREASURY_WALLET } from './web3';
@@ -215,3 +215,37 @@ export async function addTransactionRecord(walletAddress: string, record: Omit<T
   return fullRecord;
 }
 
+
+export async function getAllUsers(): Promise<UserProfile[]> {
+  if (db) {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      return snap.docs.map(doc => doc.data() as UserProfile);
+    } catch (e) {
+      console.warn("Firestore fetch all failed, falling back to local:", e);
+    }
+  }
+  const users: UserProfile[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(STORAGE_KEY_PREFIX)) {
+      users.push(JSON.parse(localStorage.getItem(key) as string));
+    }
+  }
+  return users;
+}
+
+export async function deleteUserProfile(walletAddress: string): Promise<void> {
+  if (!walletAddress) return;
+  const normalizedAddress = walletAddress.toLowerCase();
+  
+  if (db) {
+    try {
+      await deleteDoc(doc(db, "users", normalizedAddress));
+    } catch (e) {
+      console.warn("Firestore delete failed:", e);
+    }
+  }
+  localStorage.removeItem(STORAGE_KEY_PREFIX + normalizedAddress);
+  localStorage.removeItem(TX_STORAGE_KEY + normalizedAddress);
+}

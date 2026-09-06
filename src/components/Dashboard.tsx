@@ -58,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Claim points action
   const handleClaimPoints = () => {
-    if (!isMinerEnded) return;
+    if (!isMinerEnded || isMining) return;
 
     setIsMining(true);
     setTimeout(() => {
