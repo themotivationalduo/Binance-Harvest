@@ -222,11 +222,11 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
                   </div>
                   <div className="flex justify-between">
                     <span>Upgrade Fee:</span>
-                    <span className="font-mono text-white">{t.upgradeCostUSD === 0 ? 'FREE (Start)' : `$${t.upgradeCostUSD.toFixed(2)} USD`}</span>
+                    <span className="font-mono text-amber-400 font-bold">{t.upgradeCostUSD === 0 ? '0 BNB' : `${costInBNB.toFixed(5)} BNB`}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Est. BNB Cost:</span>
-                    <span className="font-mono text-amber-400">{t.upgradeCostUSD === 0 ? '0 BNB' : `≈ ${costInBNB.toFixed(5)} BNB`}</span>
+                    <span>Fiat Equivalent:</span>
+                    <span className="font-mono text-slate-400">{t.upgradeCostUSD === 0 ? 'FREE (Start)' : `≈ $${t.upgradeCostUSD.toFixed(2)} USD`}</span>
                   </div>
                 </div>
               </div>
@@ -248,11 +248,11 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
                     {upgradingTier === t.tier ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Signing on BSC (${t.upgradeCostUSD.toFixed(2)})...</span>
+                        <span>Signing on BSC ({costInBNB.toFixed(5)} BNB)...</span>
                       </>
                     ) : (
                       <>
-                        <span>Upgrade Now (${t.upgradeCostUSD.toFixed(2)})</span>
+                        <span>Upgrade Now ({costInBNB.toFixed(5)} BNB)</span>
                         <ArrowUpRight className="w-4 h-4" />
                       </>
                     )}

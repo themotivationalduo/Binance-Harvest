@@ -153,7 +153,7 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
         description: `Consecutive visit streak verified! Your daily bonus of ${earnedBonus.toLocaleString()} mining points has been credited to your balance.`,
         details: [
           { label: 'Consecutive Streak', value: `Day ${newStreak} 🔥` },
-          { label: 'Bonus Reward', value: `+${earnedBonus.toLocaleString()} PTS (≈ $${((earnedBonus / 1000) * 0.50).toFixed(2)} USD)` },
+          { label: 'Bonus Reward', value: `+${earnedBonus.toLocaleString()} PTS (≈ ${(earnedBonus / 500).toFixed(2)} BHFT ≈ $${(earnedBonus / 1000).toFixed(2)} USD)` },
           { label: 'New Total Balance', value: `${newTotalPoints.toLocaleString()} PTS` },
           { label: 'Next Reward Tomorrow', value: `+${getStreakRewardPoints(newStreak + 1).toLocaleString()} PTS` },
           { label: 'Cloud Storage', value: 'Saved to Secure Ledger' },

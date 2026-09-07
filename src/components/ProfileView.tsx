@@ -318,7 +318,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <span className="text-sm font-bold text-slate-400">BHFT</span>
             </div>
             <div className="text-xs text-slate-500 font-mono">
-              Value: ≈ ${((user.miningBalance || 0) * 0.50).toFixed(2)} USD (1 BHFT = $0.50 USD)
+              Value: ≈ ${((user.miningBalance || 0) * 0.50).toFixed(2)} USD (1 BHFT = 500 PTS = $0.50 USD)
             </div>
           </div>
 

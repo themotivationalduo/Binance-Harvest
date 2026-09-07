@@ -84,7 +84,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
-        const miningBalance = data.miningBalance !== undefined ? Number(data.miningBalance) : ((data.totalPoints || 0) / 1000);
+        const miningBalance = data.miningBalance !== undefined ? Number(data.miningBalance) : ((data.totalPoints || 0) / 500);
         return {
           ...data,
           walletAddress: normalizedAddress,
@@ -107,7 +107,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     const profile = JSON.parse(localData) as UserProfile;
     profile.walletAddress = normalizedAddress;
     profile.treasuryWalletAddress = TREASURY_WALLET;
-    profile.miningBalance = profile.miningBalance !== undefined ? Number(profile.miningBalance) : ((profile.totalPoints || 0) / 1000);
+    profile.miningBalance = profile.miningBalance !== undefined ? Number(profile.miningBalance) : ((profile.totalPoints || 0) / 500);
     profile.loginStreak = profile.loginStreak ?? 0;
     profile.lastStreakClaimDate = profile.lastStreakClaimDate ?? '';
     profile.totalStreakPointsClaimed = profile.totalStreakPointsClaimed ?? 0;
