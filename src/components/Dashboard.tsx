@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
-import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame } from 'lucide-react';
-import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET } from '../services/web3';
+import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink } from 'lucide-react';
+import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,8 +78,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isMinerEnded = elapsedMs >= minerCycleDurationMs;
   const effectiveElapsed = Math.min(elapsedMs, minerCycleDurationMs);
   const accumulatedBHFT = (effectiveElapsed / minerCycleDurationMs) * dailyBHFT;
+  const remainingMs = Math.max(0, minerCycleDurationMs - elapsedMs);
 
-  // Claim points/BHFT action
+  const formatRemainingCountdown = (ms: number) => {
+    if (ms <= 0) return '00h 00m 00s';
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+  };
+
+  // Claim points/BHFT action: Adds session yield to balance and automatically starts a new 24h session
   const handleClaimPoints = () => {
     if (!isMinerEnded || isMining) return;
 
@@ -96,26 +106,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
         totalPoints: newTotalPoints,
         miningBalanceBNB: (newBalance * 0.50) / bnbPrice,
         lastClaimDate: now.split('T')[0],
-        minerStartTimestamp: now,
+        minerStartTimestamp: now, // Automatically initiates brand new 24h session
       });
       
       setIsMining(false);
-      setSuccessMessage(`Successfully harvested +${earned.toFixed(4)} BHFT to your mining balance!`);
-      setTimeout(() => setSuccessMessage(null), 4000);
+      setSuccessMessage(`Successfully harvested +${earned.toFixed(4)} BHFT! Your balance was credited and a new 24h mining cycle has started.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
 
       // Trigger glorious Success Animation
       showSuccess({
         initiativeName: 'Cloud Hash Harvest',
         title: 'Mining Yield Harvested!',
         badge: `+${earned.toFixed(4)} BHFT`,
-        description: `Successfully collected ${earned.toFixed(4)} mined BHFT from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
+        description: `Successfully collected ${earned.toFixed(4)} mined BHFT to your mining balance. Your next 24-hour ASIC mining session has automatically begun!`,
         details: [
           { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyBHFT.toFixed(2)} BHFT/day)` },
-          { label: 'Total Balance', value: `${newBalance.toFixed(2)} BHFT` },
-          { label: 'Estimated Value', value: `≈ $${(newBalance * 0.50).toFixed(2)} USD` },
+          { label: 'Updated Balance', value: `${newBalance.toFixed(2)} BHFT` },
+          { label: 'Estimated Value', value: `≈ ${(newBalance * 0.50).toFixed(2)} USDT` },
+          { label: 'New Mining Session', value: 'Active (24h Countdown Reset)' },
         ],
       });
-    }, 1000);
+    }, 800);
   };
 
   // Verify & Withdraw action
@@ -294,8 +305,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
-                <p className="text-[#848E9C]">4. USD Equivalent Baseline:</p>
-                <p className="text-white">1 BHFT = 500 Points = $0.50 USD (Pegged)</p>
+                <p className="text-[#848E9C]">4. USDT Equivalent Baseline:</p>
+                <p className="text-white">1 BHFT = 500 Points = 0.50 USDT (Pegged)</p>
               </div>
             </div>
 
@@ -428,12 +439,61 @@ export const Dashboard: React.FC<DashboardProps> = ({
           )}
         </AnimatePresence>
 
+        {/* 24h Mining Session Completed Alert Banner */}
+        <AnimatePresence>
+          {isMinerEnded && (
+            <motion.div
+              initial={{ opacity: 0, y: -12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.98 }}
+              className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#F3BA2F]/10 to-amber-500/15 border-2 border-[#F3BA2F]/50 shadow-[0_8px_32px_rgba(243,186,47,0.25)] backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-[#F3BA2F] text-black flex items-center justify-center font-black shrink-0 shadow-lg">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-bold text-white">24h Mining Session Completed</h3>
+                    <span className="text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                      MINING STOPPED
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                    Your 24-hour ASIC cloud mining session has ended and mining is now halted. Claim your earned <strong className="text-amber-300 font-mono">+{accumulatedBHFT.toFixed(4)} BHFT</strong> to automatically credit your balance and initiate your next 24-hour mining session!
+                  </p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleClaimPoints}
+                disabled={isMining}
+                className="w-full md:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-[#F3BA2F] to-amber-300 hover:brightness-110 text-black font-extrabold text-xs flex items-center justify-center gap-2 shadow-xl shadow-[#F3BA2F]/30 transition shrink-0 cursor-pointer"
+              >
+                {isMining ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
+                    <span>Claiming & Starting New Session...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-black" />
+                    <span>Claim & Start New Session</span>
+                  </>
+                )}
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Top Header Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-[#848E9C] text-xs font-medium uppercase tracking-wider">Total Mining Balance</h2>
-              <button onClick={() => setShowRateModal(true)} className="text-[#F3BA2F] hover:underline text-[10px] flex items-center gap-1">
+              <button onClick={() => setShowRateModal(true)} className="text-[#F3BA2F] hover:underline text-[10px] flex items-center gap-1 cursor-pointer">
                 <Info className="w-3 h-3" /> Rate Formula
               </button>
             </div>
@@ -447,28 +507,44 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="flex flex-col items-start md:items-end gap-1">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-[#848E9C] text-[10px] font-medium uppercase tracking-wider">Live Accumulated BHFT</h2>
-              <motion.div
-                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-                transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                className="w-1.5 h-1.5 rounded-full bg-[#00C087]"
-              />
+              <h2 className="text-[#848E9C] text-[10px] font-medium uppercase tracking-wider">
+                {isMinerEnded ? 'Session Yield (24h Capped)' : 'Live Accumulated BHFT'}
+              </h2>
+              {isMinerEnded ? (
+                <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.2 rounded font-mono font-bold">
+                  HALTED
+                </span>
+              ) : (
+                <motion.div
+                  animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-1.5 h-1.5 rounded-full bg-[#00C087]"
+                />
+              )}
             </div>
             <motion.div
-              animate={{ 
+              animate={isMinerEnded ? {
+                boxShadow: ["0px 0px 0px 0px rgba(243, 186, 47, 0.1)", "0px 0px 10px 2px rgba(243, 186, 47, 0.25)", "0px 0px 0px 0px rgba(243, 186, 47, 0.1)"]
+              } : { 
                 boxShadow: ["0px 0px 0px 0px rgba(0, 192, 135, 0.1)", "0px 0px 8px 2px rgba(0, 192, 135, 0.3)", "0px 0px 0px 0px rgba(0, 192, 135, 0.1)"]
               }}
-              transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-              className="flex items-baseline gap-2 bg-[#00C087]/10 px-3 py-1.5 rounded-lg border border-[#00C087]/20"
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              className={`flex items-baseline gap-2 px-3.5 py-1.5 rounded-xl border ${
+                isMinerEnded 
+                  ? 'bg-amber-500/10 border-amber-500/30' 
+                  : 'bg-[#00C087]/10 border-[#00C087]/20'
+              }`}
             >
-              <span className="text-2xl font-bold mono text-[#00C087]">
+              <span className={`text-2xl font-bold mono ${isMinerEnded ? 'text-amber-300' : 'text-[#00C087]'}`}>
                 +{accumulatedBHFT.toFixed(6)}
               </span>
-              <span className="text-xs font-semibold text-[#00C087]/80">BHFT</span>
+              <span className={`text-xs font-semibold ${isMinerEnded ? 'text-amber-300/80' : 'text-[#00C087]/80'}`}>
+                BHFT
+              </span>
             </motion.div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <motion.button
               whileHover={isMinerEnded && !isMining ? { scale: 1.03 } : {}}
               whileTap={isMinerEnded && !isMining ? { scale: 0.96 } : {}}
@@ -476,7 +552,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               disabled={isMining || !isMinerEnded}
               className={`text-black text-xs font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer ${
                 isMinerEnded && !isMining
-                  ? 'bg-gradient-to-r from-amber-500 to-[#F3BA2F] shadow-lg shadow-[#F3BA2F]/20'
+                  ? 'bg-gradient-to-r from-amber-400 via-[#F3BA2F] to-amber-300 shadow-lg shadow-[#F3BA2F]/30 text-black font-extrabold'
                   : 'bg-[#2B3139] text-[#848E9C] cursor-not-allowed border border-[rgba(255,255,255,0.08)]'
               }`}
             >
@@ -487,22 +563,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                 <Clock className="w-4 h-4 text-[#848E9C]" />
               )}
-              <span className={isMinerEnded ? 'text-black' : 'text-[#848E9C]'}>
-                {isMinerEnded ? 'Claim BHFT' : `Claim in ${Math.ceil((minerCycleDurationMs - elapsedMs) / (60 * 60 * 1000))}h`}
+              <span className={isMinerEnded ? 'text-black font-extrabold' : 'text-[#848E9C]'}>
+                {isMinerEnded ? 'Claim & Start New Session' : `Active: ${formatRemainingCountdown(remainingMs)}`}
               </span>
             </motion.button>
 
-            <div className="bg-[#0B0E11] p-3 rounded-lg border border-white/5 flex items-center gap-3">
+            <div className="bg-[#0B0E11] p-3 rounded-xl border border-white/5 flex items-center gap-3">
               <div className="relative flex items-center justify-center">
-                <div className={`absolute w-6 h-6 rounded-full animate-ping ${isMinerEnded ? 'bg-[#F3BA2F]/30' : 'bg-[#00C087]/30'}`}></div>
-                <div className={`w-3 h-3 rounded-full animate-pulse ${isMinerEnded ? 'bg-[#F3BA2F] shadow-[0_0_16px_#F3BA2F]' : 'bg-[#00C087] shadow-[0_0_16px_#00C087]'}`}></div>
+                <div className={`absolute w-6 h-6 rounded-full animate-ping ${isMinerEnded ? 'bg-red-400/30' : 'bg-[#00C087]/30'}`}></div>
+                <div className={`w-3 h-3 rounded-full animate-pulse ${isMinerEnded ? 'bg-red-400 shadow-[0_0_16px_#ef4444]' : 'bg-[#00C087] shadow-[0_0_16px_#00C087]'}`}></div>
               </div>
               <div className="leading-tight">
-                <p className={`text-xs font-bold flex items-center gap-1.5 ${isMinerEnded ? 'text-[#F3BA2F]' : 'text-[#00C087]'}`}>
-                  <span>{isMinerEnded ? 'CYCLE ENDED' : 'MINING ACTIVE'}</span>
+                <p className={`text-xs font-bold flex items-center gap-1.5 ${isMinerEnded ? 'text-red-400' : 'text-[#00C087]'}`}>
+                  <span>{isMinerEnded ? 'MINING STOPPED' : 'MINING ACTIVE'}</span>
                   {!isMinerEnded && <span className="inline-block w-1.5 h-1.5 bg-[#00C087] rounded-full animate-ping"></span>}
                 </p>
-                <p className="text-[10px] text-[#848E9C]">Tier {user.currentTier} Rate</p>
+                <p className="text-[10px] text-[#848E9C]">
+                  {isMinerEnded ? 'Claim yield to restart' : `Tier ${user.currentTier} (${dailyBHFT.toFixed(2)}/day)`}
+                </p>
               </div>
             </div>
           </div>
@@ -515,7 +593,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <p className="text-3xl font-bold mono mb-1 text-white">
               {bhftBalance.toFixed(2)} <span className="text-sm font-normal text-[#848E9C]">BHFT</span>
             </p>
-            <p className="text-xs text-[#848E9C]">≈ ${usdValue.toFixed(2)} USD (Peg: $0.50 / BHFT)</p>
+            <p className="text-xs text-[#848E9C]">≈ {usdValue.toFixed(2)} USDT (Peg: 0.50 USDT / BHFT)</p>
           </div>
 
           <div className="p-6 bg-[#2B3139] rounded-lg border border-[rgba(255,255,255,0.08)]">
@@ -668,12 +746,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        <div className="p-6 bg-[#181A20] border-t border-[rgba(255,255,255,0.08)]">
-          <div className="flex items-center justify-between text-[11px] text-[#848E9C] mb-2">
-            <span>Treasury Wallet</span>
-            <span className="text-[#00C087]">Verified</span>
+        <div className="p-6 bg-[#181A20] border-t border-[rgba(255,255,255,0.08)] space-y-3">
+          <div>
+            <div className="flex items-center justify-between text-[11px] text-[#848E9C] mb-1">
+              <span>BHFT Token Contract</span>
+              <span className="text-[#F3BA2F] font-bold">BEP-20</span>
+            </div>
+            <a 
+              href={`https://bscscan.com/token/${BHFT_TOKEN_ADDRESS}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="mono text-[10px] text-amber-400/90 hover:text-amber-300 break-all flex items-center gap-1 transition"
+            >
+              <span>{BHFT_TOKEN_ADDRESS}</span>
+              <ExternalLink className="w-3 h-3 shrink-0" />
+            </a>
           </div>
-          <p className="mono text-[10px] text-white/40 break-all">{user.treasuryWalletAddress || TREASURY_WALLET}</p>
+          <div>
+            <div className="flex items-center justify-between text-[11px] text-[#848E9C] mb-1">
+              <span>Treasury Receiver Wallet</span>
+              <span className="text-[#00C087]">Verified</span>
+            </div>
+            <p className="mono text-[10px] text-white/40 break-all">{user.treasuryWalletAddress || TREASURY_WALLET}</p>
+          </div>
         </div>
       </aside>
 

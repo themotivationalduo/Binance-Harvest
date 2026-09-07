@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, ADMIN_WALLETS } from '../types';
-import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers } from 'lucide-react';
-import { TREASURY_WALLET, getLiveTreasuryStats } from '../services/web3';
+import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers, Coins, PlusCircle } from 'lucide-react';
+import { 
+  TREASURY_WALLET, 
+  getLiveTreasuryStats, 
+  BHFT_TOKEN_ADDRESS, 
+  BHFT_TOKEN_NAME, 
+  BHFT_TOKEN_SYMBOL, 
+  BHFT_TOKEN_DECIMALS, 
+  BHFT_TOTAL_SUPPLY,
+  addBHFTToWallet 
+} from '../services/web3';
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { AppLogo } from './AppLogo';
 
 interface TreasuryViewProps {
   user: UserProfile;
@@ -12,6 +22,8 @@ interface TreasuryViewProps {
 
 export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) => {
   const [copied, setCopied] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [addingToken, setAddingToken] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const { showSuccess, showFailed, showCopySuccess } = useInitiativeFeedback();
   const [treasuryStats, setTreasuryStats] = useState<{
@@ -80,6 +92,42 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     showCopySuccess('Treasury Wallet Address');
+  };
+
+  const handleCopyToken = () => {
+    navigator.clipboard.writeText(BHFT_TOKEN_ADDRESS);
+    setTokenCopied(true);
+    setTimeout(() => setTokenCopied(false), 2000);
+    showCopySuccess('BHFT Token Contract Address');
+  };
+
+  const handleAddToken = async () => {
+    try {
+      setAddingToken(true);
+      const added = await addBHFTToWallet();
+      if (added) {
+        showSuccess({
+          initiativeName: 'BEP-20 Asset Integration',
+          title: 'BHFT Added to Wallet!',
+          badge: 'MetaMask Sync',
+          description: 'BinanceHarvest (BHFT) token asset was successfully imported into your Web3 wallet.',
+          details: [
+            { label: 'Token Name', value: BHFT_TOKEN_NAME },
+            { label: 'Symbol', value: BHFT_TOKEN_SYMBOL },
+            { label: 'Decimals', value: `${BHFT_TOKEN_DECIMALS}` },
+            { label: 'Contract', value: `${BHFT_TOKEN_ADDRESS.substring(0, 8)}...` },
+          ],
+        });
+      }
+    } catch (e: any) {
+      showFailed({
+        initiativeName: 'BEP-20 Asset Integration',
+        title: 'Wallet Asset Import',
+        description: e?.message || 'Failed to import token to wallet. You can copy the address manually.',
+      });
+    } finally {
+      setAddingToken(false);
+    }
   };
 
   return (
@@ -224,13 +272,91 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           </div>
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
             <div className="text-xs text-slate-400 mb-1">Verification Fee</div>
-            <div className="font-bold text-amber-400">$5.00 USD (≈ {(5.00 / bnbPrice).toFixed(5)} BNB)</div>
+            <div className="font-bold text-amber-400">$20.00 USD (≈ {(20.00 / bnbPrice).toFixed(5)} BNB)</div>
             <div className="text-[11px] text-slate-400 mt-1">One-time account KYC & security audit</div>
           </div>
           <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
             <div className="text-xs text-slate-400 mb-1">Upgrade Fee</div>
-            <div className="font-bold text-amber-400">$1.00 USD (≈ {(1.00 / bnbPrice).toFixed(5)} BNB)</div>
-            <div className="text-[11px] text-slate-400 mt-1">Sequential ASIC rig upgrade tier fee</div>
+            <div className="font-bold text-amber-400">Sequential in BNB</div>
+            <div className="text-[11px] text-slate-400 mt-1">ASIC rig upgrade power levels</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Official Token Contract Card */}
+      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-xl">
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <AppLogo className="w-10 h-10" rounded="rounded-2xl" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-white">{BHFT_TOKEN_NAME} ({BHFT_TOKEN_SYMBOL})</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#F3BA2F]/20 text-[#F3BA2F] border border-[#F3BA2F]/30">
+                  BEP-20
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Official Smart Contract on Binance Smart Chain Mainnet</p>
+            </div>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={handleAddToken}
+            disabled={addingToken}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer shadow-lg shadow-amber-500/20"
+          >
+            <PlusCircle className="w-4 h-4 text-slate-950" />
+            <span>{addingToken ? 'Adding...' : 'Add BHFT to MetaMask'}</span>
+          </motion.button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-950/60 border border-white/10 p-4 rounded-2xl">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+              <Coins className="w-5 h-5 text-[#F3BA2F]" />
+            </div>
+            <div className="overflow-hidden">
+              <div className="text-xs text-slate-400">Token Contract Address</div>
+              <div className="font-mono text-amber-400 text-sm sm:text-base font-bold truncate">{BHFT_TOKEN_ADDRESS}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={`https://bscscan.com/token/${BHFT_TOKEN_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 bg-white/10 hover:bg-white/15 text-white font-semibold px-3.5 py-2.5 rounded-xl text-xs transition active:scale-95 shrink-0"
+            >
+              <ExternalLink className="w-4 h-4 text-amber-400" />
+              <span>Verify on BscScan</span>
+            </a>
+            <button
+              onClick={handleCopyToken}
+              className="flex items-center justify-center gap-2 bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold px-4 py-2.5 rounded-xl text-xs transition active:scale-95 shrink-0 shadow-lg shadow-[#F3BA2F]/20"
+            >
+              {tokenCopied ? <CheckCircle2 className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
+              <span>{tokenCopied ? 'Copied!' : 'Copy Address'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1">Token Name</div>
+            <div className="font-bold text-white">{BHFT_TOKEN_NAME}</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1">Token Symbol</div>
+            <div className="font-bold text-[#F3BA2F]">{BHFT_TOKEN_SYMBOL}</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1">Decimals</div>
+            <div className="font-bold text-white">{BHFT_TOKEN_DECIMALS}</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+            <div className="text-xs text-slate-400 mb-1">Total Supply</div>
+            <div className="font-bold text-emerald-400">{BHFT_TOTAL_SUPPLY} {BHFT_TOKEN_SYMBOL}</div>
           </div>
         </div>
       </div>

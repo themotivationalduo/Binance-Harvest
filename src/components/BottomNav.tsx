@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Cpu, Zap, Landmark, Trophy, User, History, HelpCircle, ShieldAlert } from 'lucide-react';
+import React from 'react';
+import { Cpu, Zap, Landmark, Trophy, User, History, ShieldAlert } from 'lucide-react';
 
 export type ActiveTab = 'dashboard' | 'tiers' | 'treasury' | 'leaderboard' | 'wallet' | 'history' | 'help' | 'admin';
 
@@ -9,40 +9,77 @@ interface BottomNavProps {
   isAdmin?: boolean;
 }
 
+interface NavItem {
+  id: ActiveTab;
+  fullLabel: string;
+  shortLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, isAdmin }) => {
-  const navItems = [
-    { id: 'dashboard' as ActiveTab, label: 'Mining', icon: Cpu },
-    { id: 'tiers' as ActiveTab, label: 'Tiers', icon: Zap },
-    { id: 'treasury' as ActiveTab, label: 'Treasury', icon: Landmark },
-    { id: 'leaderboard' as ActiveTab, label: 'Ranks', icon: Trophy },
-    { id: 'history' as ActiveTab, label: 'Audit', icon: History },
-    { id: 'wallet' as ActiveTab, label: 'Wallet', icon: User },
+  const navItems: NavItem[] = [
+    { id: 'dashboard', fullLabel: 'Mining', shortLabel: 'Mine', icon: Cpu },
+    { id: 'tiers', fullLabel: 'Tiers', shortLabel: 'Tier', icon: Zap },
+    { id: 'treasury', fullLabel: 'Treasury', shortLabel: 'Treas', icon: Landmark },
+    { id: 'leaderboard', fullLabel: 'Leaderboard', shortLabel: 'Rank', icon: Trophy },
+    { id: 'history', fullLabel: 'Audit', shortLabel: 'Audit', icon: History },
+    { id: 'wallet', fullLabel: 'Wallet', shortLabel: 'Wallet', icon: User },
   ];
 
   if (isAdmin) {
-    navItems.push({ id: 'admin' as ActiveTab, label: 'Admin', icon: ShieldAlert });
+    navItems.push({ id: 'admin', fullLabel: 'Admin', shortLabel: 'Admin', icon: ShieldAlert });
   }
 
   return (
     <div
-      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[96vw] transition-all duration-300 transform translate-y-0 opacity-100 pointer-events-auto"
+      id="bottom-navigation-bar"
+      className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[96vw] sm:max-w-fit px-1 sm:px-0 pointer-events-auto"
     >
-      <nav className="flex items-center justify-between w-full sm:justify-center sm:gap-4 overflow-hidden py-2 px-1">
+      <nav 
+        id="bottom-navigation-container"
+        className="relative flex items-center justify-around sm:justify-center gap-1 sm:gap-2.5 px-2 sm:px-4 py-1.5 sm:py-2 rounded-2xl sm:rounded-full bg-[#0B0E14]/85 backdrop-blur-2xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)]"
+      >
+        {/* Specular Mirror Glass sheen reflection */}
+        <div className="absolute top-0 left-0 right-0 h-[35%] bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-2xl sm:rounded-t-full" />
+
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
+              id={`nav-btn-${item.id}`}
               onClick={() => setActiveTab(item.id)}
-              title={item.label}
-              className={`flex items-center justify-center w-[12vw] h-[12vw] max-w-[56px] max-h-[56px] sm:w-14 sm:h-14 rounded-full border shadow-lg backdrop-blur-xl transition-all duration-300 shrink-0 ${
+              title={item.fullLabel}
+              aria-label={item.fullLabel}
+              className={`relative flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl sm:rounded-2xl transition-all duration-200 shrink-0 cursor-pointer select-none group min-w-[44px] xs:min-w-[48px] sm:min-w-[62px] ${
                 isActive
-                  ? 'bg-[#F3BA2F] border-[#F3BA2F] text-black shadow-[#F3BA2F]/30 scale-[1.15]'
-                  : 'bg-[#1E2329]/90 border-white/20 text-[#848E9C] hover:text-white hover:border-white/40 hover:bg-[#1E2329]'
+                  ? 'bg-gradient-to-b from-[#F3BA2F]/25 to-amber-500/10 border border-[#F3BA2F]/60 text-amber-300 shadow-[0_0_16px_rgba(243,186,47,0.3)] font-bold'
+                  : 'bg-transparent border border-transparent text-slate-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Icon className={`w-5 h-5 sm:w-6 sm:h-6 shrink-0 ${isActive ? 'text-black' : 'text-[#F3BA2F]'}`} />
+              {/* Icon Container */}
+              <div 
+                className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl transition-all duration-200 ${
+                  isActive 
+                    ? 'bg-gradient-to-tr from-[#F0B90B] to-amber-300 text-black shadow-md scale-105' 
+                    : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                <Icon className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0" />
+              </div>
+
+              {/* Navigation Label with Adaptive Abbreviation */}
+              <span 
+                className={`text-[9px] xs:text-[10px] sm:text-[11px] font-medium tracking-tight mt-0.5 truncate max-w-[52px] sm:max-w-none text-center ${
+                  isActive ? 'text-amber-300 font-bold' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                {/* Abbreviated label on mobile to prevent overlapping */}
+                <span className="sm:hidden">{item.shortLabel}</span>
+                {/* Full label on tablet and desktop */}
+                <span className="hidden sm:inline">{item.fullLabel}</span>
+              </span>
             </button>
           );
         })}
@@ -50,6 +87,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, i
     </div>
   );
 };
-
-
-

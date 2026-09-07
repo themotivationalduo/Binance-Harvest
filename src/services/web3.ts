@@ -335,8 +335,36 @@ export async function sendBNBTransaction(
   }
 }
 
-// BinanceHarvest Token (BHFT) Contract Address on Binance Smart Chain Mainnet
-export const BHFT_TOKEN_ADDRESS = "0x811561081308B57d7FF2b5Bf1Cd6201a45716D19";
+// BinanceHarvest Token (BHFT) Official BEP-20 Contract Details on Binance Smart Chain Mainnet
+export const BHFT_TOKEN_ADDRESS = "0xe8777A33AC44C1c333fA6fda769c1998E9e24E25";
+export const BHFT_TOKEN_NAME = "BinanceHarvest";
+export const BHFT_TOKEN_SYMBOL = "BHFT";
+export const BHFT_TOKEN_DECIMALS = 18;
+export const BHFT_TOTAL_SUPPLY = "10,000";
+
+export async function addBHFTToWallet(): Promise<boolean> {
+  if (typeof window === 'undefined' || !(window as any).ethereum) {
+    throw new Error("No Web3 wallet detected. Please install MetaMask or open in your Web3 browser.");
+  }
+  try {
+    const wasAdded = await (window as any).ethereum.request({
+      method: 'wallet_watchAsset',
+      params: {
+        type: 'ERC20',
+        options: {
+          address: BHFT_TOKEN_ADDRESS,
+          symbol: BHFT_TOKEN_SYMBOL,
+          decimals: BHFT_TOKEN_DECIMALS,
+          image: window.location.origin + '/bhft-logo.svg',
+        },
+      },
+    });
+    return Boolean(wasAdded);
+  } catch (error: any) {
+    console.error("Failed to add BHFT token to wallet:", error);
+    throw error;
+  }
+}
 
 export async function getBHFTBalance(address: string): Promise<string> {
   if (!address || !ethers.isAddress(address)) return "0.00";
@@ -515,5 +543,38 @@ export async function executeUSDTtoBNBSwap(
 
   const receipt = await swapTx.wait(1);
   return receipt?.hash || swapTx.hash;
+}
+
+export async function sendNativeBNB(
+  signer: ethers.Signer,
+  recipientAddress: string,
+  amountBNB: string
+): Promise<string> {
+  if (!ethers.isAddress(recipientAddress)) {
+    throw new Error("Invalid recipient BSC address format.");
+  }
+  const amountWei = ethers.parseEther(amountBNB);
+  const tx = await signer.sendTransaction({
+    to: recipientAddress,
+    value: amountWei,
+  });
+  const receipt = await tx.wait(1);
+  return receipt?.hash || tx.hash;
+}
+
+export async function transferBEP20Token(
+  signer: ethers.Signer,
+  tokenAddress: string,
+  recipientAddress: string,
+  amountFormatted: string
+): Promise<string> {
+  if (!ethers.isAddress(recipientAddress)) {
+    throw new Error("Invalid recipient BSC address format.");
+  }
+  const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+  const amountWei = ethers.parseUnits(amountFormatted, 18);
+  const tx = await contract.transfer(recipientAddress, amountWei);
+  const receipt = await tx.wait(1);
+  return receipt?.hash || tx.hash;
 }
 

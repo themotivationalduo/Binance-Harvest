@@ -30,12 +30,13 @@ export interface TierInfo {
 export interface TransactionRecord {
   id: string;
   userAddress: string;
-  type: 'UPGRADE' | 'WITHDRAW_FEE' | 'CLAIM';
+  type: 'UPGRADE' | 'WITHDRAW_FEE' | 'CLAIM' | 'TRANSFER' | 'WITHDRAW';
   amountBNB: number;
   amountUSD: number;
   txHash: string;
-  status: 'SUCCESS' | 'PENDING' | 'FAILED';
+  status: 'SUCCESS' | 'PENDING' | 'FAILED' | 'CONFIRMED';
   timestamp: string;
+  details?: string;
 }
 
 export const ADMIN_WALLETS = [

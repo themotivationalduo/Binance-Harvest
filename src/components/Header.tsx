@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Zap, Wallet, Globe, ExternalLink, RefreshCw } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 
 interface HeaderProps {
   walletAddress: string | null;
@@ -61,11 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="h-[64px] border-b border-white/10 flex items-center justify-between px-4 sm:px-6 bg-[#0B0E11]/80 backdrop-blur-xl sticky top-0 z-40">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 text-[#F3BA2F] flex items-center justify-center filter drop-shadow-[0_2px_8px_rgba(243,186,47,0.3)]">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-            <path d="M16.622 10.076L12 5.454 7.378 10.076H3.344L12 1.419l8.656 8.657h-4.034zM12 18.546l4.622-4.622h4.034L12 22.58l-8.656-8.656h4.034L12 18.546zM13.931 12L12 10.069 10.069 12 12 13.931 13.931 12zM20.656 12l-2.011-2.012 2.011-2.012L22.668 12l-2.012 2.012L20.656 12zM3.344 12l2.012-2.012L3.344 7.976 1.332 12l2.012 2.012L3.344 12z"/>
-          </svg>
-        </div>
+        <AppLogo className="w-8 h-8" rounded="rounded-xl" />
         <span className="text-xl font-bold tracking-tight text-white">Binance<span className="text-[#F3BA2F]">Harvest</span></span>
       </div>
 
