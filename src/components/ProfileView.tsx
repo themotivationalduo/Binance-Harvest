@@ -312,20 +312,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total Mined Points Balance</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total Mined BHFT Balance</div>
             <div className="text-3xl font-black text-[#F3BA2F] font-mono flex items-baseline gap-1.5">
-              {user.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              <span className="text-sm font-bold text-slate-400">PTS</span>
+              {(user.miningBalance || 0).toFixed(2)}
+              <span className="text-sm font-bold text-slate-400">BHFT</span>
             </div>
             <div className="text-xs text-slate-500 font-mono">
-              Value: ≈ ${((user.totalPoints / 1000) * 0.50).toFixed(2)} USD (1,000 PTS = $0.50 USD)
+              Value: ≈ ${((user.miningBalance || 0) * 0.50).toFixed(2)} USD (1 BHFT = $0.50 USD)
             </div>
           </div>
 
           <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
-            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Equivalent Mined BNB Balance</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Equivalent Mined BNB Value</div>
             <div className="text-3xl font-black text-white font-mono flex items-baseline gap-1.5">
-              {((user.totalPoints / 1000) * 0.50 / (bnbPrice || 600)).toFixed(6)}
+              {(((user.miningBalance || 0) * 0.50) / (bnbPrice || 600)).toFixed(6)}
               <span className="text-sm font-bold text-slate-400">BNB</span>
             </div>
             <div className="text-xs text-slate-500 font-mono">
@@ -604,7 +604,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <span>Total Streak Bonus Claimed</span>
             </div>
             <div className="font-mono text-[#00C087] font-bold text-base">
-              +{(user.totalStreakPointsClaimed || 0).toLocaleString()} PTS
+              +{(user.totalStreakPointsClaimed || 0).toLocaleString()} BHFT
             </div>
           </div>
         </div>

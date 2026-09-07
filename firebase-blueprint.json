@@ -7,6 +7,7 @@
       "properties": {
         "walletAddress": { "type": "string" },
         "currentTier": { "type": "number" },
+        "miningBalance": { "type": "number", "description": "BHFT token mining balance stored as float/string representation" },
         "totalPoints": { "type": "number" },
         "miningBalanceBNB": { "type": "number" },
         "lastClaimDate": { "type": "string" },

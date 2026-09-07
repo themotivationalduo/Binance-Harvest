@@ -61,6 +61,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     return {
       walletAddress: '',
       currentTier: 1,
+      miningBalance: 0,
       totalPoints: 0,
       miningBalanceBNB: 0,
       lastClaimDate: new Date().toISOString().split('T')[0],
@@ -83,10 +84,12 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data() as UserProfile;
+        const miningBalance = data.miningBalance !== undefined ? Number(data.miningBalance) : ((data.totalPoints || 0) / 1000);
         return {
           ...data,
           walletAddress: normalizedAddress,
           treasuryWalletAddress: TREASURY_WALLET,
+          miningBalance,
           loginStreak: data.loginStreak ?? 0,
           lastStreakClaimDate: data.lastStreakClaimDate ?? '',
           totalStreakPointsClaimed: data.totalStreakPointsClaimed ?? 0,
@@ -104,6 +107,7 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     const profile = JSON.parse(localData) as UserProfile;
     profile.walletAddress = normalizedAddress;
     profile.treasuryWalletAddress = TREASURY_WALLET;
+    profile.miningBalance = profile.miningBalance !== undefined ? Number(profile.miningBalance) : ((profile.totalPoints || 0) / 1000);
     profile.loginStreak = profile.loginStreak ?? 0;
     profile.lastStreakClaimDate = profile.lastStreakClaimDate ?? '';
     profile.totalStreakPointsClaimed = profile.totalStreakPointsClaimed ?? 0;
@@ -111,10 +115,11 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     return profile;
   }
 
-  // Create default on-chain user profile starting afresh (0 points, tier 1)
+  // Create default on-chain user profile starting afresh (0 tokens, tier 1)
   const defaultProfile: UserProfile = {
     walletAddress: normalizedAddress,
     currentTier: 1,
+    miningBalance: 0,
     totalPoints: 0,
     miningBalanceBNB: 0,
     lastClaimDate: new Date().toISOString().split('T')[0],

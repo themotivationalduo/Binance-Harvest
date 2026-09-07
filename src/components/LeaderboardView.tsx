@@ -8,12 +8,12 @@ interface LeaderboardViewProps {
 
 export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ user }) => {
   const topMiners = [
-    { rank: 1, address: '0x3F71...8a29', tier: 6, points: 485000, bnbEarned: '3.42 BNB' },
-    { rank: 2, address: '0x8B22...1c40', tier: 5, points: 312000, bnbEarned: '2.18 BNB' },
-    { rank: 3, address: '0x9E10...4f77', tier: 5, points: 298500, bnbEarned: '2.05 BNB' },
-    { rank: 4, address: user.walletAddress ? `${user.walletAddress.substring(0, 6)}...${user.walletAddress.substring(user.walletAddress.length - 4)}` : '0xYOUR...WALLET', tier: user.currentTier, points: user.totalPoints, bnbEarned: `${user.miningBalanceBNB.toFixed(4)} BNB`, isYou: true },
-    { rank: 5, address: '0x1C49...9d88', tier: 4, points: 154000, bnbEarned: '1.10 BNB' },
-    { rank: 6, address: '0x7A82...3b12', tier: 3, points: 89000, bnbEarned: '0.62 BNB' },
+    { rank: 1, address: '0x3F71...8a29', tier: 6, bhft: 485.00, usdEarned: '$242.50 USD' },
+    { rank: 2, address: '0x8B22...1c40', tier: 5, bhft: 312.00, usdEarned: '$156.00 USD' },
+    { rank: 3, address: '0x9E10...4f77', tier: 5, bhft: 298.50, usdEarned: '$149.25 USD' },
+    { rank: 4, address: user.walletAddress ? `${user.walletAddress.substring(0, 6)}...${user.walletAddress.substring(user.walletAddress.length - 4)}` : '0xYOUR...WALLET', tier: user.currentTier, bhft: user.miningBalance || 0, usdEarned: `$${((user.miningBalance || 0) * 0.5).toFixed(2)} USD`, isYou: true },
+    { rank: 5, address: '0x1C49...9d88', tier: 4, bhft: 154.00, usdEarned: '$77.00 USD' },
+    { rank: 6, address: '0x7A82...3b12', tier: 3, bhft: 89.00, usdEarned: '$44.50 USD' },
   ];
 
   return (
@@ -44,8 +44,8 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ user }) => {
                 <th className="py-4 px-6">Rank</th>
                 <th className="py-4 px-6">Miner Address</th>
                 <th className="py-4 px-6">Tier</th>
-                <th className="py-4 px-6">Total Points</th>
-                <th className="py-4 px-6 text-right">Mined Value</th>
+                <th className="py-4 px-6">Mined BHFT</th>
+                <th className="py-4 px-6 text-right">Pegged USD Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -73,10 +73,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ user }) => {
                     </span>
                   </td>
                   <td className="py-4 px-6 font-mono text-slate-200">
-                    {m.points.toLocaleString()} PTS
+                    {m.bhft.toFixed(2)} BHFT
                   </td>
                   <td className="py-4 px-6 text-right font-mono text-amber-400 font-bold">
-                    {m.bnbEarned}
+                    {m.usdEarned}
                   </td>
                 </tr>
               ))}

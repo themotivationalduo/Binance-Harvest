@@ -101,12 +101,12 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
         initiativeName: 'Mining Rig Activation',
         title: `Tier ${targetTier} Activated!`,
         badge: `Tier ${targetTier}`,
-        description: `Congratulations! Your cloud mining power has doubled. Your daily yield is now ${targetTierInfo?.pointsPerDay.toLocaleString()} PTS per day!`,
+        description: `Congratulations! Your cloud mining power has doubled. Your daily yield is now ${(targetTierInfo?.bhftPerDay || 0).toFixed(2)} BHFT per day!`,
         txHash: txHash,
         details: [
           { label: 'Upgraded Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
           { label: 'Upgrade Cost', value: `$${costUSD.toFixed(2)} USD (${bnbAmount} BNB)` },
-          { label: 'New Daily Yield', value: `${targetTierInfo?.pointsPerDay.toLocaleString()} PTS/day` },
+          { label: 'New Daily Yield', value: `${(targetTierInfo?.bhftPerDay || 0).toFixed(2)} BHFT/day` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
         ],
       });
@@ -150,7 +150,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
           Upgrade Mining Power
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Upgrade your mining tier sequentially up to <strong className="text-amber-400">Tier 20</strong> to dramatically boost your daily points output.
+          Upgrade your mining tier sequentially up to <strong className="text-amber-400">Tier 20</strong> to dramatically boost your daily BHFT output.
         </p>
       </div>
 
@@ -212,7 +212,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
 
                 <h3 className="text-xl font-bold text-white mb-1">{t.name}</h3>
                 <p className="text-slate-400 text-sm mb-6">
-                  Generates <strong className="text-amber-400">{t.pointsPerDay.toLocaleString()} points</strong> every 24 hours.
+                  Generates <strong className="text-amber-400">{(t.bhftPerDay || 0).toFixed(2)} BHFT</strong> every 24 hours.
                 </p>
 
                 <div className="space-y-2 border-t border-white/10 pt-4 text-xs text-slate-300">

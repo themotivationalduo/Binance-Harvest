@@ -1,8 +1,9 @@
 export interface UserProfile {
   walletAddress: string; // Primary On-Chain Identifier (BEP-20)
   currentTier: number;
-  totalPoints: number;
-  miningBalanceBNB: number;
+  miningBalance: number; // BHFT amount as a Float (e.g., 12.34 BHFT)
+  totalPoints: number; // Legacy, kept for backwards compatibility / UI metrics if needed
+  miningBalanceBNB: number; // Legacy, kept for backwards compatibility
   lastClaimDate: string; // Legacy or just day tracking
   minerStartTimestamp?: string; // Exact time the current mining session started
   withdrawalStatus: 'NOT_STARTED' | 'PENDING_ADMIN_APPROVAL' | 'APPROVED';
@@ -10,15 +11,17 @@ export interface UserProfile {
   isVerified: boolean;
   loginStreak: number;
   lastStreakClaimDate: string;
-  totalStreakPointsClaimed: number;
+  totalStreakPointsClaimed: number; // Legacy, maps to BHFT now
   createdAt: string;
   lastActiveTimestamp?: string;
+  email?: string;
 }
 
 export interface TierInfo {
   tier: number;
   name: string;
-  pointsPerDay: number;
+  bhftPerDay: number; // Daily mining rate in BHFT tokens (e.g., 0.10 BHFT/day)
+  pointsPerDay: number; // Legacy points rate, kept for backwards compatibility
   upgradeCostUSD: number;
   multiplier: string;
   weeklyYieldUSD: number;
@@ -43,21 +46,23 @@ export const ADMIN_WALLETS = [
 export const ALL_TIERS: TierInfo[] = (() => {
   const list: TierInfo[] = [];
   
-  // Tier 1 (Free / Initial)
+  // Tier 1 (Free / Initial) - Mines $0.05 worth of BHFT per day (0.10 BHFT/day)
   list.push({
     tier: 1,
     name: 'Tier 1 Miner',
-    pointsPerDay: 714, // Math.round((2.5 * 2000) / 7)
+    bhftPerDay: 0.10, // $0.05 worth of BHFT at $0.50 peg
+    pointsPerDay: 714,
     upgradeCostUSD: 0,
     multiplier: '1x',
-    weeklyYieldUSD: 2.50,
+    weeklyYieldUSD: 0.35, // 0.05 * 7
   });
 
   // Tier 2
   list.push({
     tier: 2,
     name: 'Tier 2 Pro Rig',
-    pointsPerDay: 1429, // Math.round((5 * 2000) / 7)
+    bhftPerDay: 5.00 / 3.5, // ~1.428 BHFT/day
+    pointsPerDay: 1429,
     upgradeCostUSD: 5.00,
     multiplier: '2x',
     weeklyYieldUSD: 5.00,
@@ -67,7 +72,8 @@ export const ALL_TIERS: TierInfo[] = (() => {
   list.push({
     tier: 3,
     name: 'Tier 3 Elite Cluster',
-    pointsPerDay: 2857, // Math.round((10 * 2000) / 7)
+    bhftPerDay: 10.00 / 3.5, // ~2.857 BHFT/day
+    pointsPerDay: 2857,
     upgradeCostUSD: 10.00,
     multiplier: '4x',
     weeklyYieldUSD: 10.00,
@@ -77,7 +83,8 @@ export const ALL_TIERS: TierInfo[] = (() => {
   list.push({
     tier: 4,
     name: 'Tier 4 Quantum ASIC',
-    pointsPerDay: 3571, // Math.round((12.5 * 2000) / 7)
+    bhftPerDay: 12.50 / 3.5, // ~3.571 BHFT/day
+    pointsPerDay: 3571,
     upgradeCostUSD: 12.50,
     multiplier: '5x',
     weeklyYieldUSD: 12.50,
@@ -87,7 +94,8 @@ export const ALL_TIERS: TierInfo[] = (() => {
   list.push({
     tier: 5,
     name: 'Tier 5 Binance Titan',
-    pointsPerDay: 4286, // Math.round((15 * 2000) / 7)
+    bhftPerDay: 15.00 / 3.5, // ~4.285 BHFT/day
+    pointsPerDay: 4286,
     upgradeCostUSD: 15.00,
     multiplier: '6x',
     weeklyYieldUSD: 15.00,
@@ -100,6 +108,7 @@ export const ALL_TIERS: TierInfo[] = (() => {
     list.push({
       tier: t,
       name: `Tier ${t} Sovereign Node`,
+      bhftPerDay: cost / 3.5,
       pointsPerDay,
       upgradeCostUSD: cost,
       multiplier: `${(cost / 2.5).toFixed(1)}x`,

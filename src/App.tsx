@@ -50,6 +50,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>({
     walletAddress: '',
     currentTier: 1,
+    miningBalance: 0,
     totalPoints: 0,
     miningBalanceBNB: 0,
     lastClaimDate: new Date().toISOString().split('T')[0],
@@ -118,6 +119,7 @@ export default function App() {
           setUser({
             walletAddress: '',
             currentTier: 1,
+            miningBalance: 0,
             totalPoints: 0,
             miningBalanceBNB: 0,
             lastClaimDate: new Date().toISOString().split('T')[0],
@@ -199,6 +201,7 @@ export default function App() {
     setUser({
       walletAddress: '',
       currentTier: 1,
+      miningBalance: 0,
       totalPoints: 0,
       miningBalanceBNB: 0,
       lastClaimDate: new Date().toISOString().split('T')[0],

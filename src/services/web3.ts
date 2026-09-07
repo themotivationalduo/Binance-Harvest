@@ -335,6 +335,87 @@ export async function sendBNBTransaction(
   }
 }
 
+// BinanceHarvest Token (BHFT) Contract Address on Binance Smart Chain Mainnet
+export const BHFT_TOKEN_ADDRESS = "0x811561081308B57d7FF2b5Bf1Cd6201a45716D19";
+
+export async function getBHFTBalance(address: string): Promise<string> {
+  if (!address || !ethers.isAddress(address)) return "0.00";
+  try {
+    const provider = getPublicBscProvider();
+    const contract = new ethers.Contract(BHFT_TOKEN_ADDRESS, ERC20_ABI, provider);
+    const balance = await contract.balanceOf(address);
+    return Number(ethers.formatUnits(balance, 18)).toFixed(2);
+  } catch (e) {
+    console.warn("Could not query BHFT balance:", e);
+    return "0.00";
+  }
+}
+
+export async function sendBHFTTransaction(
+  signer: ethers.Signer | null,
+  amountUSD: number,
+  bnbPrice: number
+): Promise<{ txHash: string; tokenAmountStr: string; tokenAmountWei: bigint }> {
+  if (!signer) {
+    throw new Error(
+      "No active Web3 signer. Please connect your Web3 wallet on Binance Smart Chain to confirm and sign this transaction."
+    );
+  }
+
+  // Peg: 1 BHFT = $0.50 USD. So $20.00 USD is exactly 40 BHFT
+  const tokenAmount = amountUSD / 0.50;
+  const tokenAmountStr = tokenAmount.toFixed(4);
+  const tokenAmountWei = ethers.parseUnits(tokenAmountStr, 18);
+
+  // Validate chain
+  if (signer.provider) {
+    const network = await signer.provider.getNetwork();
+    if (Number(network.chainId) !== 56) {
+      const switched = await switchToBSC();
+      if (!switched) {
+        throw new Error("Your wallet is not connected to Binance Smart Chain Mainnet. Please switch networks in your wallet.");
+      }
+    }
+
+    const userAddress = await signer.getAddress();
+    const bhftContract = new ethers.Contract(BHFT_TOKEN_ADDRESS, ERC20_ABI, signer.provider);
+    const balance: bigint = await bhftContract.balanceOf(userAddress).catch(() => 0n);
+    if (balance < tokenAmountWei) {
+      const currentBhft = Number(ethers.formatUnits(balance, 18)).toFixed(2);
+      throw new Error(
+        `Insufficient BHFT balance in wallet ${userAddress.substring(0, 6)}... Required: ${tokenAmountStr} BHFT (~$${amountUSD.toFixed(2)} USD), but you currently have ${currentBhft} BHFT.`
+      );
+    }
+  }
+
+  try {
+    const userAddress = await signer.getAddress();
+    const bhftContract = new ethers.Contract(BHFT_TOKEN_ADDRESS, ERC20_ABI, signer);
+    
+    console.log(`Initiating BEP-20 token transfer of ${tokenAmountStr} BHFT to Treasury...`);
+    // Send BEP-20 token transfer transaction directly on Binance Smart Chain
+    const tx = await bhftContract.transfer(TREASURY_WALLET, tokenAmountWei);
+    
+    // Wait for real on-chain confirmation (1 confirmation)
+    const receipt = await tx.wait(1);
+
+    return {
+      txHash: receipt?.hash || tx.hash,
+      tokenAmountStr,
+      tokenAmountWei,
+    };
+  } catch (err: any) {
+    console.error("Real on-chain BHFT token transfer error:", err);
+    if (err?.code === 4001 || err?.action === 'reject' || err?.message?.includes("User rejected") || err?.message?.includes("user rejected")) {
+      throw new Error("Transaction rejected in your wallet.");
+    }
+    if (err?.code === 'INSUFFICIENT_FUNDS' || err?.message?.includes("insufficient funds")) {
+      throw new Error("Insufficient BHFT or BNB gas funds for this token transfer transaction.");
+    }
+    throw new Error(err?.reason || err?.message || "Failed to execute BEP-20 transfer on Binance Smart Chain.");
+  }
+}
+
 // PancakeSwap V2 and USDT Addresses on Binance Smart Chain
 export const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 export const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
@@ -344,6 +425,7 @@ const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 value) returns (bool)",
+  "function transfer(address to, uint256 value) returns (bool)",
   "function decimals() view returns (uint8)"
 ];
 
