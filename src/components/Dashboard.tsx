@@ -12,6 +12,8 @@ import { ReferralCard } from './ReferralCard';
 import { sendPushNotification } from '../services/notifications';
 import { parseWeb3Error } from '../utils/errorParser';
 
+import { CommunityTasks } from './CommunityTasks';
+
 interface DashboardProps {
   user: UserProfile;
   bnbPrice: number;
@@ -720,6 +722,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           </div>
         </div>
+
+        {/* Community Airdrop Tasks */}
+        <CommunityTasks user={user} onUpdateUser={onUpdateUser} />
 
         {/* Referral Program & Mining Boost Feature */}
         <ReferralCard

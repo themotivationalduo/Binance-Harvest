@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, ChevronUp, Zap, ShieldCheck, Cpu, FileText, ExternalLink, BookOpen } from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp, Zap, ShieldCheck, Cpu, FileText, ExternalLink, BookOpen, Twitter, Send } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface FaqItem {
@@ -155,17 +155,28 @@ export const HelpView: React.FC = () => {
       </div>
 
       <div className="p-6 bg-gradient-to-r from-[#1E2329] to-[#0B0E11] rounded-2xl border border-[#F3BA2F]/20 text-center space-y-3">
-        <h3 className="text-base font-bold text-white">Need Additional Support?</h3>
+        <h3 className="text-base font-bold text-white">Join Our Community & Support</h3>
         <p className="text-xs text-[#848E9C] max-w-md mx-auto">
-          Our support engineers are online 24/7 via Telegram and Discord channels for verified BinanceHarvest miners.
+          Our support engineers are online 24/7 via Telegram and X (Twitter) for verified BinanceHarvest miners.
         </p>
-        <div className="flex justify-center gap-3 pt-2">
+        <div className="flex flex-wrap justify-center gap-3 pt-2">
           <a
-            href="#telegram"
-            onClick={(e) => e.preventDefault()}
-            className="px-4 py-2 bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-semibold rounded-lg text-xs transition"
+            href="https://t.me/binanceharvest"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
           >
-            Join Telegram Support
+            <Send className="w-3.5 h-3.5" />
+            <span>Join Telegram</span>
+          </a>
+          <a
+            href="https://x.com/BINANCEHARVEST"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-black hover:bg-slate-900 border border-white/20 text-white font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
+          >
+            <Twitter className="w-3.5 h-3.5" />
+            <span>Follow X</span>
           </a>
           <a
             href="/whitepaper.html"

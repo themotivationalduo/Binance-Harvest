@@ -20,6 +20,8 @@ export interface UserProfile {
   referralCount?: number; // Total number of friends invited
   referredUsers?: string[]; // List of referred user wallet addresses
   referralBonusPercent?: number; // Total active referral boost percentage
+  // Social Tasks
+  completedSocialTasks?: string[];
 }
 
 export interface TierInfo {
