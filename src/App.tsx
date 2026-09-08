@@ -4,8 +4,9 @@ import { BottomNav, ActiveTab } from './components/BottomNav';
 import { TabSkeleton } from './components/TabSkeleton';
 import { UserProfile, ADMIN_WALLETS } from './types';
 import { fetchLiveBNBPrice, connectWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
-import { getUserProfile, updateUserProfileFields } from './services/firebase';
+import { getUserProfile, updateUserProfileFields, subscribeToUserProfile } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
+import { resolveInitialRoute, VALID_TABS } from './utils/referral';
 
 // Dynamic lazy imports for ultra-fast bundle size & instant initial paint
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -20,80 +21,62 @@ const AdminView = lazy(() => import('./components/AdminView').then(m => ({ defau
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    const path = window.location.pathname.substring(1);
-    const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
-    return validTabs.includes(path) ? (path as ActiveTab) : 'dashboard';
+    const routeInfo = resolveInitialRoute();
+    return routeInfo.activeTab;
   });
   const [pendingReferralCode, setPendingReferralCode] = useState<string>(() => {
+    const routeInfo = resolveInitialRoute();
+    if (routeInfo.referralCode) {
+      return routeInfo.referralCode;
+    }
     return typeof window !== 'undefined' ? (localStorage.getItem('binance_harvest_pending_ref') || '') : '';
   });
 
   useEffect(() => {
-    // 1. Detect referral links from pathname, search params, hash, or full URL:
-    // e.g. /?ref=0x123..., /#ref=0x123..., /ref-0x123..., /ref/0x123..., ?r=0x123...
-    const pathname = window.location.pathname;
-    const search = window.location.search;
-    const hash = window.location.hash;
-    const fullHref = window.location.href;
+    // Check auth status synchronously
+    const isAuthenticated = Boolean(localStorage.getItem('binance_harvest_active_wallet'));
+    
+    // 1. Resolve and normalize initial routing, handling all referral formats or malformed URLs gracefully
+    const routeInfo = resolveInitialRoute(isAuthenticated);
 
-    let detectedRef = '';
+    if (routeInfo.referralCode) {
+      setPendingReferralCode(routeInfo.referralCode);
+      localStorage.setItem('binance_harvest_pending_ref', routeInfo.referralCode);
+      setShowAuthModal(true);
+    }
 
-    // A. Query parameter check (?ref=0x... or ?r=0x...)
-    if (search) {
-      const params = new URLSearchParams(search);
-      const queryRef = params.get('ref') || params.get('r') || params.get('referrer');
-      if (queryRef) {
-        const queryMatch = queryRef.match(/0x[a-fA-F0-9]{40}/i);
-        if (queryMatch) {
-          detectedRef = queryMatch[0].toLowerCase();
+    if (routeInfo.needsHistoryReplace) {
+      // Gracefully redirect all non-tab, malformed, or referral URLs to /dashboard or /auth without 404s
+      window.history.replaceState(null, '', routeInfo.targetUrl);
+      setActiveTab(routeInfo.activeTab);
+    }
+
+    if (routeInfo.showAuth) {
+      setShowAuthModal(true);
+    }
+
+    // 2. Browser history popstate handler for back/forward navigation
+    const handlePopState = () => {
+      const isAuth = Boolean(localStorage.getItem('binance_harvest_active_wallet'));
+      const fallbackInfo = resolveInitialRoute(isAuth);
+      
+      const path = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+      const valid = VALID_TABS.includes(path as any);
+      
+      if (valid) {
+        setActiveTab(path as ActiveTab);
+      } else {
+        // Unknown or malformed path -> smoothly fallback to dashboard or auth
+        window.history.replaceState(null, '', fallbackInfo.targetUrl);
+        setActiveTab(fallbackInfo.activeTab);
+        if (fallbackInfo.showAuth) {
+          setShowAuthModal(true);
+        } else {
+          setShowAuthModal(false);
         }
       }
-    }
-
-    // B. Pathname check (/ref-0x... or /ref/0x...)
-    if (!detectedRef && pathname) {
-      const pathMatch = pathname.match(/ref[-/](0x[a-fA-F0-9]{40})/i);
-      if (pathMatch) {
-        detectedRef = pathMatch[1].toLowerCase();
-      }
-    }
-
-    // C. Hash parameter check (#ref=0x... or #ref-0x...)
-    if (!detectedRef && hash) {
-      const hashMatch = hash.match(/(?:ref|r)[=-](0x[a-fA-F0-9]{40})/i) || hash.match(/0x[a-fA-F0-9]{40}/i);
-      if (hashMatch) {
-        detectedRef = hashMatch[1] ? hashMatch[1].toLowerCase() : hashMatch[0].toLowerCase();
-      }
-    }
-
-    // D. Full href fallback if 'ref' appears anywhere before an address
-    if (!detectedRef && fullHref.toLowerCase().includes('ref')) {
-      const fullMatch = fullHref.match(/0x[a-fA-F0-9]{40}/i);
-      if (fullMatch) {
-        detectedRef = fullMatch[0].toLowerCase();
-      }
-    }
-
-    if (detectedRef) {
-      setPendingReferralCode(detectedRef);
-      localStorage.setItem('binance_harvest_pending_ref', detectedRef);
-      setShowAuthModal(true);
-      // Clean up URL to standard /dashboard while preserving the referral state
-      window.history.replaceState(null, '', '/dashboard');
-      setActiveTab('dashboard');
-    }
-
-    const handlePopState = () => {
-      const path = window.location.pathname.substring(1);
-      const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
-      setActiveTab(validTabs.includes(path) ? (path as ActiveTab) : 'dashboard');
     };
     window.addEventListener('popstate', handlePopState);
-    
-    // Set initial URL if empty
-    if (window.location.pathname === '/' && !detectedRef) {
-      window.history.replaceState(null, '', '/dashboard');
-    }
     
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -132,6 +115,33 @@ export default function App() {
       getUserProfile(registeredWallet).then((profile) => setUser(profile));
     }
   }, []);
+
+  // Real-time Firestore profile and referral listener
+  useEffect(() => {
+    if (!walletAddress) return;
+    const unsubscribe = subscribeToUserProfile(walletAddress, (updatedProfile) => {
+      setUser((prev) => {
+        const prevCount = prev.referralCount || 0;
+        const newCount = updatedProfile.referralCount || 0;
+        if (newCount > prevCount && prev.walletAddress) {
+          showSuccess({
+            initiativeName: 'Referral Hash Booster',
+            title: 'New Referee Joined! 🚀',
+            badge: '+5% DAILY MINING BOOST',
+            description: `A new miner just registered on BSC using your referral link! Your referral count is now ${newCount} (+${newCount * 5}% Hashpower Yield Boost active).`,
+            details: [
+              { label: 'Total Referrals', value: `${newCount} Miners` },
+              { label: 'Mining Speed', value: `+${(newCount * 5) + (updatedProfile.referredBy ? 5 : 0)}% Boosted` },
+              { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+            ],
+          });
+        }
+        return updatedProfile;
+      });
+    });
+
+    return () => unsubscribe();
+  }, [walletAddress, showSuccess]);
 
   // Fetch BNB price on mount and every 60 seconds
   useEffect(() => {
@@ -315,6 +325,11 @@ export default function App() {
             if (profile.walletAddress) {
               setWalletAddress(profile.walletAddress);
               syncWalletBalance(profile.walletAddress);
+              const currentPath = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+              if (currentPath === 'auth' || currentPath === 'login' || currentPath === '') {
+                window.history.replaceState(null, '', '/dashboard');
+                setActiveTab('dashboard');
+              }
             }
           }}
         />

@@ -87,7 +87,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       // Handle optional referral code application
       let referralBoostApplied = false;
-      const refCode = referralInput.trim();
+      const refCode = (referralInput.trim() || initialReferralCode || localStorage.getItem('binance_harvest_pending_ref') || '').trim();
       if (refCode && !profile.referredBy) {
         try {
           const refRes = await applyReferralCode(normalizedAddress, refCode);

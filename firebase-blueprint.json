@@ -42,6 +42,25 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "userAddress", "amountUSD", "type", "txHash"]
+    },
+    "ReferralActivityEvent": {
+      "title": "ReferralActivityEvent",
+      "description": "Email-like notification log for referral registrations and hash speed boosts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "referrerAddress": { "type": "string" },
+        "refereeAddress": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "speedIncreasePercent": { "type": "number" },
+        "totalBoostPercent": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "referrerAddress", "refereeAddress", "type", "subject"]
     }
   },
   "firestore": {
@@ -52,6 +71,10 @@
     "/transactions/{transactionId}": {
       "schema": "TransactionRecord",
       "description": "Stores transaction receipts with BscScan hashes and miner wallet address"
+    },
+    "/referralEvents/{eventId}": {
+      "schema": "ReferralActivityEvent",
+      "description": "Stores referral speed boost event logs and inbox notifications"
     }
   }
 }

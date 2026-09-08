@@ -14,7 +14,6 @@ import {
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { AppLogo } from './AppLogo';
-import { WhitePaperModal } from './WhitePaperModal';
 
 interface TreasuryViewProps {
   user: UserProfile;
@@ -26,7 +25,6 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
   const [tokenCopied, setTokenCopied] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
-  const [showWhitePaper, setShowWhitePaper] = useState(false);
   const { showSuccess, showFailed, showCopySuccess } = useInitiativeFeedback();
   const [treasuryStats, setTreasuryStats] = useState<{
     treasuryBnb: string;
@@ -145,15 +143,17 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
             Live On-Chain Smart Treasury
           </span>
           <div className="flex items-center gap-2 flex-wrap">
-            <motion.button
+            <motion.a
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.96 }}
-              onClick={() => setShowWhitePaper(true)}
+              href="/whitepaper.html"
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500/20 via-[#F3BA2F]/25 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-[#F3BA2F]/40 text-[#F3BA2F] font-bold rounded-xl text-xs transition cursor-pointer shadow-lg shadow-[#F3BA2F]/10"
             >
               <FileText className="w-3.5 h-3.5 text-[#F3BA2F]" />
               <span>White Paper v1.0</span>
-            </motion.button>
+            </motion.a>
 
             <motion.button
               whileHover={{ scale: 1.03 }}
@@ -394,24 +394,17 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <a
+            <motion.a
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               href="/whitepaper.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition active:scale-95 shrink-0"
-            >
-              <ExternalLink className="w-4 h-4 text-amber-400" />
-              <span>HTML Document</span>
-            </a>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowWhitePaper(true)}
               className="flex items-center gap-2 bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:brightness-110 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-[#F3BA2F]/20 shrink-0"
             >
               <FileText className="w-4 h-4 text-slate-950" />
               <span>Read White Paper</span>
-            </motion.button>
+            </motion.a>
           </div>
         </div>
 
@@ -475,12 +468,6 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           </div>
         </div>
       </div>
-
-      {/* White Paper Interactive Modal */}
-      <WhitePaperModal
-        isOpen={showWhitePaper}
-        onClose={() => setShowWhitePaper(false)}
-      />
 
     </div>
   );

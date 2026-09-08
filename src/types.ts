@@ -35,7 +35,7 @@ export interface TierInfo {
 export interface TransactionRecord {
   id: string;
   userAddress: string;
-  type: 'UPGRADE' | 'WITHDRAW_FEE' | 'CLAIM' | 'TRANSFER' | 'WITHDRAW';
+  type: 'UPGRADE' | 'WITHDRAW_FEE' | 'CLAIM' | 'TRANSFER' | 'WITHDRAW' | 'REFERRAL_BOOST' | 'REFERRAL_JOIN';
   amountBNB: number;
   amountUSD: number;
   txHash: string;
@@ -43,6 +43,79 @@ export interface TransactionRecord {
   timestamp: string;
   details?: string;
 }
+
+export interface ReferralActivityEvent {
+  id: string;
+  referrerAddress: string;
+  refereeAddress: string;
+  type: 'REFERRAL_JOINED' | 'SPEED_BOOST_ACTIVATED' | 'MILESTONE_UNLOCKED';
+  title: string;
+  subject: string;
+  speedIncreasePercent: number;
+  totalBoostPercent: number;
+  timestamp: string;
+  status: 'VERIFIED' | 'CONFIRMED';
+  details?: string;
+  read?: boolean;
+}
+
+export interface ReferralMilestone {
+  minReferrals: number;
+  name: string;
+  boostPercent: number;
+  badge: string;
+  color: string;
+  iconName: string;
+  description: string;
+}
+
+export const REFERRAL_MILESTONES: ReferralMilestone[] = [
+  {
+    minReferrals: 50,
+    name: 'Diamond Syndicate',
+    boostPercent: 250,
+    badge: 'DIAMOND',
+    color: 'from-cyan-400 to-blue-500',
+    iconName: 'Sparkles',
+    description: 'Supreme Syndicate Leader with +250% minimum mining velocity',
+  },
+  {
+    minReferrals: 25,
+    name: 'Gold Validator',
+    boostPercent: 125,
+    badge: 'GOLD',
+    color: 'from-amber-400 to-yellow-500',
+    iconName: 'Crown',
+    description: 'High-Volume Network Partner with +125% mining speed boost',
+  },
+  {
+    minReferrals: 10,
+    name: 'Silver Node',
+    boostPercent: 50,
+    badge: 'SILVER',
+    color: 'from-slate-300 to-slate-400',
+    iconName: 'Zap',
+    description: 'Active Network Node with +50% mining speed boost',
+  },
+  {
+    minReferrals: 5,
+    name: 'Bronze Booster',
+    boostPercent: 25,
+    badge: 'BRONZE',
+    color: 'from-amber-600 to-orange-500',
+    iconName: 'Flame',
+    description: 'Established Team Builder with +25% mining speed boost',
+  },
+  {
+    minReferrals: 1,
+    name: 'Active Recruiter',
+    boostPercent: 5,
+    badge: 'STARTER',
+    color: 'from-emerald-400 to-teal-500',
+    iconName: 'UserCheck',
+    description: 'Beginning referral builder (+5% per referee invited)',
+  },
+];
 
 export const ADMIN_WALLETS = [
   '0x2a9ba6c55f22a81d6b0c80837996a0ecc28751e6'

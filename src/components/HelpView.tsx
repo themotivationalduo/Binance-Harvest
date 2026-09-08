@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, ChevronUp, Zap, ShieldCheck, Cpu } from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp, Zap, ShieldCheck, Cpu, FileText, ExternalLink, BookOpen } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface FaqItem {
   question: string;
@@ -11,6 +12,11 @@ export const HelpView: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const faqs: FaqItem[] = [
+    {
+      category: "White Paper & PoE",
+      question: "Where can I read the official BinanceHarvest White Paper?",
+      answer: "The official BinanceHarvest White Paper (v1.0) is published as a standalone technical document detailing our Proof-of-Engagement (PoE) mining protocol, 10,000 fixed BHFT tokenomics, BEP-20 smart contract architecture, and roadmap. Click the 'Read White Paper' button above or below anytime to access the full document."
+    },
     {
       category: "Tier Upgrades",
       question: "How do Tier upgrades work and what is the cost?",
@@ -52,6 +58,38 @@ export const HelpView: React.FC = () => {
         <p className="text-sm text-[#848E9C]">
           Everything you need to know about BinanceHarvest cloud mining, tier upgrades, and withdrawals.
         </p>
+      </div>
+
+      {/* Official White Paper Callout */}
+      <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#F3BA2F]/15 to-amber-500/10 border border-[#F3BA2F]/30 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+        <div className="flex items-center gap-3.5 text-left">
+          <div className="w-11 h-11 rounded-xl bg-[#F3BA2F]/20 border border-[#F3BA2F]/40 flex items-center justify-center text-[#F3BA2F] shrink-0">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              Official White Paper (v1.0)
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F3BA2F]/20 text-[#F3BA2F] font-extrabold border border-[#F3BA2F]/40">
+                PoE Protocol
+              </span>
+            </h3>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Read the comprehensive technical architecture, tokenomics, and roadmap.
+            </p>
+          </div>
+        </div>
+
+        <motion.a
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          href="/whitepaper.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-[#F3BA2F] hover:bg-[#e2ad23] text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-[#F3BA2F]/20 shrink-0"
+        >
+          <FileText className="w-4 h-4 text-slate-950" />
+          <span>Read White Paper</span>
+        </motion.a>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
@@ -128,6 +166,15 @@ export const HelpView: React.FC = () => {
             className="px-4 py-2 bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-semibold rounded-lg text-xs transition"
           >
             Join Telegram Support
+          </a>
+          <a
+            href="/whitepaper.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
+          >
+            <FileText className="w-3.5 h-3.5 text-[#F3BA2F]" />
+            <span>White Paper</span>
           </a>
         </div>
       </div>

@@ -21,5 +21,13 @@ service cloud.firestore {
         && request.resource.data.type is string
         && request.resource.data.userAddress is string;
     }
+
+    // Referral Activity & Speed Boost Event Logs
+    match /referralEvents/{eventId} {
+      allow read: if true;
+      allow create: if request.resource.data.referrerAddress is string
+        && request.resource.data.refereeAddress is string
+        && request.resource.data.type is string;
+    }
   }
 }
