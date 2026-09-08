@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, ADMIN_WALLETS } from '../types';
-import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers, Coins, PlusCircle } from 'lucide-react';
+import { Landmark, ShieldCheck, ExternalLink, Copy, CheckCircle2, Clock, AlertTriangle, RefreshCw, Activity, Layers, Coins, PlusCircle, FileText, BookOpen, Sparkles } from 'lucide-react';
 import { 
   TREASURY_WALLET, 
   getLiveTreasuryStats, 
@@ -14,6 +14,7 @@ import {
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { AppLogo } from './AppLogo';
+import { WhitePaperModal } from './WhitePaperModal';
 
 interface TreasuryViewProps {
   user: UserProfile;
@@ -25,6 +26,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
   const [tokenCopied, setTokenCopied] = useState(false);
   const [addingToken, setAddingToken] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [showWhitePaper, setShowWhitePaper] = useState(false);
   const { showSuccess, showFailed, showCopySuccess } = useInitiativeFeedback();
   const [treasuryStats, setTreasuryStats] = useState<{
     treasuryBnb: string;
@@ -58,14 +60,13 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
       const stats = await getLiveTreasuryStats();
       setTreasuryStats(stats);
       
-      const balanceStr = isAdmin ? `${stats.treasuryBnbFormatted} BNB` : '•••• BNB (Protected)';
       showSuccess({
         initiativeName: 'BSC Treasury Ledger',
         title: 'Node Synchronized!',
         badge: `Block #${stats.blockNumber > 0 ? stats.blockNumber.toLocaleString() : 'Live'}`,
-        description: 'Successfully verified live Binance Smart Chain Mainnet ledger state and treasury balance.',
+        description: 'Successfully verified live Binance Smart Chain Mainnet ledger state.',
         details: [
-          { label: 'Treasury Balance', value: balanceStr },
+          ...(isAdmin ? [{ label: 'Treasury Balance', value: `${stats.treasuryBnbFormatted} BNB` }] : []),
           { label: 'Gas Price', value: `${stats.gasPriceGwei} Gwei` },
           { label: 'Network', value: 'BSC Mainnet (BEP-20)' },
         ],
@@ -131,42 +132,60 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-4 pt-6">
+    <div className="space-y-6 pb-36 sm:pb-40 max-w-7xl mx-auto px-4 pt-6 overflow-y-auto">
       
       {/* Header */}
-      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-2xl">
-        <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
+      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-2xl relative overflow-hidden">
+        {/* Mirror Glass Glow Background */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-amber-500/10 via-[#F3BA2F]/5 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        
+        <div className="flex items-center justify-between gap-4 mb-2 flex-wrap relative z-10">
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
             <Landmark className="w-3.5 h-3.5 text-amber-400" />
             Live On-Chain Smart Treasury
           </span>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={handleManualSync}
-            disabled={loadingStats}
-            className="flex items-center gap-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs text-slate-300 transition cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loadingStats ? 'animate-spin' : ''}`} />
-            <span>Sync BSC Node</span>
-          </motion.button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setShowWhitePaper(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500/20 via-[#F3BA2F]/25 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-[#F3BA2F]/40 text-[#F3BA2F] font-bold rounded-xl text-xs transition cursor-pointer shadow-lg shadow-[#F3BA2F]/10"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#F3BA2F]" />
+              <span>White Paper v1.0</span>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={handleManualSync}
+              disabled={loadingStats}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs text-slate-300 transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loadingStats ? 'animate-spin' : ''}`} />
+              <span>Sync BSC Node</span>
+            </motion.button>
+          </div>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight relative z-10">
           Official Treasury & Settlement Contract
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-slate-400 text-sm mt-1 relative z-10">
           All tier upgrade payments and withdrawal verification fees are broadcast directly to the Binance Smart Chain Treasury wallet.
         </p>
       </div>
 
       {/* Live On-Chain Node Status Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-5 rounded-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1 relative z-10">
-            <span>Treasury On-Chain Balance</span>
-            <Activity className="w-4 h-4 text-emerald-400" />
-          </div>
-          {isAdmin ? (
+      <div className={`grid grid-cols-1 ${isAdmin ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
+        {isAdmin && (
+          <div className="bg-slate-900/60 backdrop-blur-xl border border-amber-500/30 p-5 rounded-2xl relative overflow-hidden shadow-lg shadow-amber-500/10">
+            <div className="flex items-center justify-between text-xs text-amber-400 mb-1 relative z-10 font-semibold">
+              <span className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/20 text-amber-300 uppercase">Admin View</span>
+                <span>Treasury Balance</span>
+              </span>
+              <Activity className="w-4 h-4 text-emerald-400" />
+            </div>
             <div className="relative z-10">
               <div className="text-xl font-bold font-mono text-white">
                 {treasuryStats.treasuryBnbFormatted} BNB
@@ -175,20 +194,8 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
                 ≈ ${(Number(treasuryStats.treasuryBnb || 0) * (bnbPrice || 750)).toFixed(2)} USD
               </div>
             </div>
-          ) : (
-            <div className="relative z-10">
-              <div className="text-sm font-bold font-mono text-slate-400 flex items-center gap-1.5 mt-1.5">
-                <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] rounded-lg font-sans">
-                  ADMINS ONLY
-                </span>
-                <span className="text-slate-500">•••• BNB</span>
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-1">
-                Balance hidden for security
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 p-5 rounded-2xl">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
@@ -361,6 +368,75 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
         </div>
       </div>
 
+      {/* Official White Paper & Documentation Card */}
+      <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-amber-500/10 via-[#F3BA2F]/5 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10 relative z-10">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-[#F3BA2F]/30 to-amber-400/10 border border-[#F3BA2F]/40 flex items-center justify-center text-[#F3BA2F] shrink-0 shadow-lg shadow-[#F3BA2F]/10">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+                  Official White Paper (v1.0)
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#F3BA2F]/15 text-[#F3BA2F] border border-[#F3BA2F]/30 flex items-center gap-1 shadow-sm">
+                  <Sparkles className="w-3 h-3" />
+                  BEP-20 Architecture
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                Explore the complete technical specification, Proof-of-Engagement (PoE) consensus model, tokenomics, visual tier progression chart, and roadmap for BinanceHarvest (BHFT).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/whitepaper.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition active:scale-95 shrink-0"
+            >
+              <ExternalLink className="w-4 h-4 text-amber-400" />
+              <span>HTML Document</span>
+            </a>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowWhitePaper(true)}
+              className="flex items-center gap-2 bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:brightness-110 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-lg shadow-[#F3BA2F]/20 shrink-0"
+            >
+              <FileText className="w-4 h-4 text-slate-950" />
+              <span>Read White Paper</span>
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Quick Highlights Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-5 relative z-10">
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+            <div className="text-xs text-slate-400 font-semibold mb-1">Decentralized Cloud Mining</div>
+            <div className="text-sm font-bold text-white">Proof-of-Engagement (PoE)</div>
+            <p className="text-[11px] text-slate-400 mt-1">Zero hardware or electricity costs required; verified directly on BSC.</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+            <div className="text-xs text-slate-400 font-semibold mb-1">Fixed Supply & Stability</div>
+            <div className="text-sm font-bold text-[#00C087]">10,000 BHFT Fixed Cap</div>
+            <p className="text-[11px] text-slate-400 mt-1">Pegged baseline with planned liquidity pooling on PancakeSwap & Uniswap.</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+            <div className="text-xs text-slate-400 font-semibold mb-1">Public Treasury Auditing</div>
+            <div className="text-sm font-bold text-[#F3BA2F]">100% On-Chain BscScan</div>
+            <p className="text-[11px] text-slate-400 mt-1">40% of protocol fees allocated to future listings, marketing, and treasury.</p>
+          </div>
+        </div>
+      </div>
+
       {/* User Withdrawal Status Card */}
       <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-xl">
         <h3 className="text-lg font-bold text-white mb-4">Your Account Settlement & Verification</h3>
@@ -399,6 +475,12 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           </div>
         </div>
       </div>
+
+      {/* White Paper Interactive Modal */}
+      <WhitePaperModal
+        isOpen={showWhitePaper}
+        onClose={() => setShowWhitePaper(false)}
+      />
 
     </div>
   );

@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { BottomNav, ActiveTab } from './components/BottomNav';
-import { Dashboard } from './components/Dashboard';
-import { TiersView } from './components/TiersView';
-import { TreasuryView } from './components/TreasuryView';
-import { LeaderboardView } from './components/LeaderboardView';
-import { ProfileView } from './components/ProfileView';
-import { TransactionHistory } from './components/TransactionHistory';
-import { HelpView } from './components/HelpView';
-import { AuthModal } from './components/AuthModal';
-import { AdminView } from './components/AdminView';
+import { TabSkeleton } from './components/TabSkeleton';
 import { UserProfile, ADMIN_WALLETS } from './types';
 import { fetchLiveBNBPrice, connectWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
 import { getUserProfile, updateUserProfileFields } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
+
+// Dynamic lazy imports for ultra-fast bundle size & instant initial paint
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const TiersView = lazy(() => import('./components/TiersView').then(m => ({ default: m.TiersView })));
+const TreasuryView = lazy(() => import('./components/TreasuryView').then(m => ({ default: m.TreasuryView })));
+const LeaderboardView = lazy(() => import('./components/LeaderboardView').then(m => ({ default: m.LeaderboardView })));
+const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
+const TransactionHistory = lazy(() => import('./components/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
+const HelpView = lazy(() => import('./components/HelpView').then(m => ({ default: m.HelpView })));
+const AuthModal = lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
@@ -21,8 +24,43 @@ export default function App() {
     const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
     return validTabs.includes(path) ? (path as ActiveTab) : 'dashboard';
   });
+  const [pendingReferralCode, setPendingReferralCode] = useState<string>(() => {
+    return typeof window !== 'undefined' ? (localStorage.getItem('binance_harvest_pending_ref') || '') : '';
+  });
 
   useEffect(() => {
+    // 1. Detect referral links from pathname or search params:
+    // e.g. /ref-0x123..., /ref/0x123..., ?ref=0x123..., ?r=0x123...
+    const pathname = window.location.pathname;
+    const search = window.location.search;
+
+    let detectedRef = '';
+
+    const pathMatch = pathname.match(/ref[-/](0x[a-fA-F0-9]{40})/i);
+    if (pathMatch) {
+      detectedRef = pathMatch[1].toLowerCase();
+    }
+
+    if (!detectedRef && search) {
+      const params = new URLSearchParams(search);
+      const queryRef = params.get('ref') || params.get('r');
+      if (queryRef) {
+        const queryMatch = queryRef.match(/0x[a-fA-F0-9]{40}/i);
+        if (queryMatch) {
+          detectedRef = queryMatch[0].toLowerCase();
+        }
+      }
+    }
+
+    if (detectedRef) {
+      setPendingReferralCode(detectedRef);
+      localStorage.setItem('binance_harvest_pending_ref', detectedRef);
+      setShowAuthModal(true);
+      // Clean up URL to standard /dashboard while preserving the state
+      window.history.replaceState(null, '', '/dashboard');
+      setActiveTab('dashboard');
+    }
+
     const handlePopState = () => {
       const path = window.location.pathname.substring(1);
       const validTabs = ['dashboard', 'tiers', 'treasury', 'leaderboard', 'history', 'help', 'wallet'];
@@ -31,7 +69,7 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     
     // Set initial URL if empty
-    if (window.location.pathname === '/') {
+    if (window.location.pathname === '/' && !detectedRef) {
       window.history.replaceState(null, '', '/dashboard');
     }
     
@@ -244,23 +282,26 @@ export default function App() {
     <div className="min-h-screen bg-[#0B0E11] text-[#EAECEF] relative selection:bg-[#F3BA2F] selection:text-black">
       
       {/* Auth Modal (Mandatory Registration/Login) */}
-      <AuthModal
-        isOpen={showAuthModal || !user.walletAddress}
-        isClosable={!!user.walletAddress}
-        onClose={() => setShowAuthModal(false)}
-        onLoginSuccess={(profile) => {
-          setUser(profile);
-          if (profile.walletAddress) {
-            setWalletAddress(profile.walletAddress);
-            syncWalletBalance(profile.walletAddress);
-          }
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          isOpen={showAuthModal || !user.walletAddress}
+          isClosable={!!user.walletAddress}
+          initialReferralCode={pendingReferralCode}
+          onClose={() => setShowAuthModal(false)}
+          onLoginSuccess={(profile) => {
+            setUser(profile);
+            if (profile.walletAddress) {
+              setWalletAddress(profile.walletAddress);
+              syncWalletBalance(profile.walletAddress);
+            }
+          }}
+        />
+      </Suspense>
 
       {/* Web3 Error / Help Modal */}
       {walletError && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-slate-900/95 border border-white/20 p-6 rounded-3xl shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+          <div className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto custom-scrollbar bg-slate-900/95 border border-white/20 p-6 rounded-3xl shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-amber-400 font-bold text-lg">
               <span className="p-2 rounded-xl bg-amber-500/20">⚠️</span>
               <h3>Web3 Wallet Notice</h3>
@@ -299,59 +340,61 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="relative z-10">
-        {activeTab === 'dashboard' && (
-          <Dashboard
-            user={user}
-            bnbPrice={bnbPrice}
-            onUpdateUser={handleUpdateUser}
-            onNavigateToTiers={() => handleTabChange('tiers')}
-          />
-        )}
-        {activeTab === 'tiers' && (
-          <TiersView
-            user={user}
-            bnbPrice={bnbPrice}
-            onUpdateUser={handleUpdateUser}
-          />
-        )}
-        {activeTab === 'treasury' && (
-          <TreasuryView
-            user={user}
-            bnbPrice={bnbPrice}
-          />
-        )}
-        {activeTab === 'leaderboard' && (
-          <LeaderboardView
-            user={user}
-          />
-        )}
-        {activeTab === 'history' && (
-          <TransactionHistory
-            user={user}
-          />
-        )}
-        {activeTab === 'help' && (
-          <HelpView />
-        )}
-        {activeTab === 'wallet' && (
-          <ProfileView
-            user={user}
-            bnbPrice={bnbPrice}
-            walletAddress={walletAddress}
-            walletBalance={walletBalance}
-            onConnectWallet={handleConnectWallet}
-            onDisconnectWallet={handleDisconnectWallet}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
-        )}
-        {activeTab === 'admin' && ADMIN_WALLETS.includes((user.walletAddress || '').toLowerCase()) && (
-          <AdminView />
-        )}
+      <main className="relative z-10 w-full min-h-[calc(100vh-64px)] overflow-x-hidden">
+        <Suspense fallback={<TabSkeleton />}>
+          {activeTab === 'dashboard' && (
+            <Dashboard
+              user={user}
+              bnbPrice={bnbPrice}
+              onUpdateUser={handleUpdateUser}
+              onNavigateToTiers={() => handleTabChange('tiers')}
+            />
+          )}
+          {activeTab === 'tiers' && (
+            <TiersView
+              user={user}
+              bnbPrice={bnbPrice}
+              onUpdateUser={handleUpdateUser}
+            />
+          )}
+          {activeTab === 'treasury' && (
+            <TreasuryView
+              user={user}
+              bnbPrice={bnbPrice}
+            />
+          )}
+          {activeTab === 'leaderboard' && (
+            <LeaderboardView
+              user={user}
+            />
+          )}
+          {activeTab === 'history' && (
+            <TransactionHistory
+              user={user}
+            />
+          )}
+          {activeTab === 'help' && (
+            <HelpView />
+          )}
+          {activeTab === 'wallet' && (
+            <ProfileView
+              user={user}
+              bnbPrice={bnbPrice}
+              walletAddress={walletAddress}
+              walletBalance={walletBalance}
+              onConnectWallet={handleConnectWallet}
+              onDisconnectWallet={handleDisconnectWallet}
+              onOpenAuth={() => setShowAuthModal(true)}
+            />
+          )}
+          {activeTab === 'admin' && ADMIN_WALLETS.includes((user.walletAddress || '').toLowerCase()) && (
+            <AdminView />
+          )}
+        </Suspense>
       </main>
 
       {/* Floating Bottom Navigation Bar */}
-      {(user.walletAddress && !showAuthModal) && (
+      {!showAuthModal && (
         <BottomNav 
           activeTab={activeTab} 
           setActiveTab={handleTabChange} 

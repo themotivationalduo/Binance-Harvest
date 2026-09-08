@@ -94,6 +94,10 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
           lastStreakClaimDate: data.lastStreakClaimDate ?? '',
           totalStreakPointsClaimed: data.totalStreakPointsClaimed ?? 0,
           minerStartTimestamp: data.minerStartTimestamp ?? new Date().toISOString(),
+          referredBy: data.referredBy || undefined,
+          referralCount: data.referralCount ?? (data.referredUsers ? data.referredUsers.length : 0),
+          referredUsers: data.referredUsers ?? [],
+          referralBonusPercent: data.referralBonusPercent ?? (((data.referralCount ?? 0) * 5) + (data.referredBy ? 5 : 0)),
         };
       }
     } catch (e) {
@@ -112,6 +116,9 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     profile.lastStreakClaimDate = profile.lastStreakClaimDate ?? '';
     profile.totalStreakPointsClaimed = profile.totalStreakPointsClaimed ?? 0;
     profile.minerStartTimestamp = profile.minerStartTimestamp ?? new Date().toISOString();
+    profile.referralCount = profile.referralCount ?? (profile.referredUsers ? profile.referredUsers.length : 0);
+    profile.referredUsers = profile.referredUsers ?? [];
+    profile.referralBonusPercent = profile.referralBonusPercent ?? (((profile.referralCount ?? 0) * 5) + (profile.referredBy ? 5 : 0));
     return profile;
   }
 
@@ -132,10 +139,104 @@ export async function getUserProfile(walletAddress: string): Promise<UserProfile
     totalStreakPointsClaimed: 0,
     createdAt: new Date().toISOString(),
     lastActiveTimestamp: new Date().toISOString(),
+    referralCount: 0,
+    referredUsers: [],
+    referralBonusPercent: 0,
   };
 
   await saveUserProfile(normalizedAddress, defaultProfile);
   return defaultProfile;
+}
+
+/**
+ * Applies a referral code linking a referee to a referrer.
+ * Rewards both with a permanent +5% Daily Mining boost.
+ */
+export async function applyReferralCode(
+  refereeAddress: string,
+  rawReferrerCode: string
+): Promise<{ success: boolean; message: string; referrerAddress?: string; updatedProfile?: UserProfile }> {
+  if (!refereeAddress) {
+    return { success: false, message: 'Please connect your wallet first.' };
+  }
+
+  const normalizedReferee = refereeAddress.toLowerCase().trim();
+  let normalizedReferrer = rawReferrerCode.trim().toLowerCase();
+
+  // Extract address if full URL or prefix e.g. ref-0x... or https://.../ref-0x...
+  const match = normalizedReferrer.match(/0x[a-f0-9]{40}/i);
+  if (match) {
+    normalizedReferrer = match[0].toLowerCase();
+  }
+
+  // Validate BEP-20 / EVM address format
+  if (!normalizedReferrer.startsWith('0x') || normalizedReferrer.length !== 42) {
+    return {
+      success: false,
+      message: 'Invalid referral code. Must be a valid 42-character BSC wallet address (0x...).',
+    };
+  }
+
+  // Prevent self-referral
+  if (normalizedReferee === normalizedReferrer) {
+    return {
+      success: false,
+      message: 'You cannot use your own referral code!',
+    };
+  }
+
+  // Fetch referee profile
+  const refereeProfile = await getUserProfile(normalizedReferee);
+  if (refereeProfile.referredBy) {
+    return {
+      success: false,
+      message: `You have already applied a referral code (Referred by ${refereeProfile.referredBy.substring(0, 6)}...${refereeProfile.referredBy.substring(38)}).`,
+    };
+  }
+
+  try {
+    // 1. Update Referrer's profile (+1 referral, add referee to referredUsers list)
+    const referrerProfile = await getUserProfile(normalizedReferrer);
+    const existingReferredUsers = referrerProfile.referredUsers || [];
+    const isAlreadyInList = existingReferredUsers.includes(normalizedReferee);
+
+    const updatedReferredUsers = isAlreadyInList
+      ? existingReferredUsers
+      : [...existingReferredUsers, normalizedReferee];
+
+    const updatedReferralCount = updatedReferredUsers.length;
+    const updatedReferrerProfile: UserProfile = {
+      ...referrerProfile,
+      referralCount: updatedReferralCount,
+      referredUsers: updatedReferredUsers,
+      referralBonusPercent: updatedReferralCount * 5 + (referrerProfile.referredBy ? 5 : 0),
+    };
+
+    await saveUserProfile(normalizedReferrer, updatedReferrerProfile);
+
+    // 2. Update Referee's profile (set referredBy, calculate bonus)
+    const refereeReferralCount = refereeProfile.referralCount || 0;
+    const updatedRefereeProfile: UserProfile = {
+      ...refereeProfile,
+      referredBy: normalizedReferrer,
+      referralBonusPercent: refereeReferralCount * 5 + 5, // +5% bonus for being referred
+    };
+
+    await saveUserProfile(normalizedReferee, updatedRefereeProfile);
+
+    return {
+      success: true,
+      message: 'Referral code applied! You and your referrer both received a +5% Daily Mining boost.',
+      referrerAddress: normalizedReferrer,
+      updatedProfile: updatedRefereeProfile,
+    };
+  } catch (err: any) {
+    console.error('Error applying referral code:', err);
+    return {
+      success: false,
+      message: err?.message || 'Failed to apply referral code. Please try again.',
+    };
+  }
 }
 
 export async function saveUserProfile(walletAddress: string, profile: UserProfile): Promise<void> {

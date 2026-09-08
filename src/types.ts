@@ -15,6 +15,11 @@ export interface UserProfile {
   createdAt: string;
   lastActiveTimestamp?: string;
   email?: string;
+  // Referral Program Fields
+  referredBy?: string; // Referrer's BNB wallet address
+  referralCount?: number; // Total number of friends invited
+  referredUsers?: string[]; // List of referred user wallet addresses
+  referralBonusPercent?: number; // Total active referral boost percentage
 }
 
 export interface TierInfo {

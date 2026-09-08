@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Cpu, Zap, Landmark, Trophy, User, History, ShieldAlert } from 'lucide-react';
 
 export type ActiveTab = 'dashboard' | 'tiers' | 'treasury' | 'leaderboard' | 'wallet' | 'history' | 'help' | 'admin';
@@ -17,6 +17,44 @@ interface NavItem {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, isAdmin }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let ticking = false;
+    let lastScrollY = window.scrollY;
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          // When scrolling is detected, hide floating bar
+          if (Math.abs(currentScrollY - lastScrollY) > 6) {
+            setIsVisible(false);
+          }
+          lastScrollY = currentScrollY;
+
+          // When scrolling stops, reveal bar with smooth transition
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          timeoutId = setTimeout(() => {
+            setIsVisible(true);
+          }, 180);
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
   const navItems: NavItem[] = [
     { id: 'dashboard', fullLabel: 'Mining', shortLabel: 'Mine', icon: Cpu },
     { id: 'tiers', fullLabel: 'Tiers', shortLabel: 'Tier', icon: Zap },
@@ -33,11 +71,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, i
   return (
     <div
       id="bottom-navigation-bar"
-      className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[96vw] sm:max-w-fit px-1 sm:px-0 pointer-events-auto"
+      className={`fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[96vw] sm:max-w-fit px-1 sm:px-0 transition-all duration-300 ease-out transform-gpu will-change-transform ${
+        isVisible 
+          ? 'translate-y-0 opacity-100 pointer-events-auto' 
+          : 'translate-y-24 sm:translate-y-28 opacity-0 pointer-events-none'
+      }`}
     >
       <nav 
         id="bottom-navigation-container"
-        className="relative flex items-center justify-around sm:justify-center gap-1 sm:gap-2.5 px-2 sm:px-4 py-1.5 sm:py-2 rounded-2xl sm:rounded-full bg-[#0B0E14]/85 backdrop-blur-2xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)]"
+        className="relative flex items-center justify-around sm:justify-center gap-1 sm:gap-2.5 px-2 sm:px-4 py-1.5 sm:py-2 rounded-2xl sm:rounded-full bg-[#0B0E14]/90 backdrop-blur-2xl border border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)]"
       >
         {/* Specular Mirror Glass sheen reflection */}
         <div className="absolute top-0 left-0 right-0 h-[35%] bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-t-2xl sm:rounded-t-full" />

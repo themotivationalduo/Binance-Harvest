@@ -119,7 +119,7 @@ export const AdminView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-4 pt-6">
+    <div className="space-y-6 pb-36 sm:pb-40 max-w-7xl mx-auto px-4 pt-6 overflow-y-auto">
       <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-red-500/20 p-6 lg:p-8 shadow-2xl">
         <div className="flex items-center justify-between">
           <div>
@@ -256,8 +256,8 @@ export const AdminView: React.FC = () => {
 
       {/* Detailed Auditing and Editing Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <div className="max-w-xl w-full mirror-glass rounded-3xl overflow-hidden shadow-2xl relative border border-white/10 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+          <div className="max-w-xl w-full my-auto max-h-[90vh] flex flex-col mirror-glass rounded-3xl overflow-hidden shadow-2xl relative border border-white/10 animate-in fade-in zoom-in duration-200">
             {/* Modal Glow effect */}
             <div className="absolute top-0 right-0 w-48 h-48 bg-[#F3BA2F]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#00C087]/5 rounded-full blur-3xl pointer-events-none"></div>

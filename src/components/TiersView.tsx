@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { UserProfile, TierInfo, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, CheckCircle2, ArrowUpRight, Loader2, Sparkles } from 'lucide-react';
-import { sendBNBTransaction } from '../services/web3';
+import { sendBNBTransaction, switchToBSC } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { sendPushNotification } from '../services/notifications';
+import { parseWeb3Error } from '../utils/errorParser';
 
 interface TiersViewProps {
   user: UserProfile;
@@ -112,20 +113,25 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
       });
     } catch (err: any) {
       console.error("Upgrade error:", err);
-      const errReason = err?.reason || err?.message || 'Transaction rejected or failed.';
+      const parsed = parseWeb3Error(err);
       setMessage({
         type: 'error',
-        text: errReason,
+        text: parsed.message,
       });
       setUpgradingTier(null);
 
       // Trigger Failed Animation
       showFailed({
         initiativeName: 'Tier Upgrade Protocol',
-        title: 'Upgrade Transaction Failed',
-        description: errReason,
-        actionLabel: 'Retry Upgrade',
-        onAction: () => handleUpgrade(targetTier),
+        title: parsed.title,
+        badge: 'Upgrade Failed',
+        description: parsed.message,
+        requirements: parsed.requirements,
+        rawDetails: parsed.rawDetails,
+        actionLabel: parsed.actionLabel,
+        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
+          await switchToBSC();
+        } : () => handleUpgrade(targetTier),
         details: [
           { label: 'Target Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
           { label: 'Required Fee', value: `$${costUSD.toFixed(2)} USD (${(costUSD / bnbPrice).toFixed(5)} BNB)` },
@@ -136,7 +142,7 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-4 pt-6">
+    <div className="space-y-6 pb-36 sm:pb-40 max-w-7xl mx-auto px-4 pt-6 overflow-y-auto">
       
       {/* Header */}
       <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-2xl">

@@ -59,6 +59,7 @@ import {
   sendPushNotification 
 } from '../services/notifications';
 import { AppLogo } from './AppLogo';
+import { parseWeb3Error } from '../utils/errorParser';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -356,11 +357,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setSwapError(null);
     setSwapSuccessHash(null);
     if (!walletAddress) {
-      setSwapError("Please connect your wallet first.");
+      const err = "Please connect your Web3 wallet first.";
+      setSwapError(err);
+      showFailed({
+        initiativeName: 'PancakeSwap Router',
+        title: 'Wallet Connection Required',
+        description: 'You must connect your Binance Smart Chain Web3 wallet before swapping tokens.',
+        actionLabel: 'Connect Wallet',
+        onAction: onConnectWallet,
+      });
       return;
     }
     if (!usdtInput || isNaN(Number(usdtInput)) || Number(usdtInput) <= 0) {
-      setSwapError("Please enter a valid USDT amount.");
+      setSwapError("Please enter a valid USDT amount greater than 0.");
       return;
     }
     try {
@@ -379,15 +388,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         initiativeName: 'PancakeSwap Router',
         title: 'Token Swap Executed!',
         badge: 'USDT → BNB',
-        description: `Successfully swapped ${usdtInput} USDT to BNB.`,
+        description: `Successfully swapped ${usdtInput} USDT to BNB on Binance Smart Chain.`,
+        txHash: txHash,
         details: [
-          { label: 'Amount In', value: `${usdtInput} USDT` },
-          { label: 'Received', value: `≈ ${estimatedBnb} BNB` },
+          { label: 'Amount In', value: `${usdtInput} USDT (BEP-20)` },
+          { label: 'Estimated Received', value: `≈ ${estimatedBnb} BNB` },
+          { label: 'Router', value: 'PancakeSwap v2' },
         ],
       });
       fetchBalances();
     } catch (err: any) {
-      setSwapError(err?.reason || err?.message || "Failed to execute swap on PancakeSwap.");
+      console.error("PancakeSwap execution failure:", err);
+      const parsed = parseWeb3Error(err);
+      setSwapError(parsed.message);
+
+      showFailed({
+        initiativeName: 'PancakeSwap Router',
+        title: parsed.title,
+        badge: 'Swap Failed',
+        description: parsed.message,
+        requirements: parsed.requirements,
+        rawDetails: parsed.rawDetails,
+        actionLabel: parsed.actionLabel,
+        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
+          await switchToBSC();
+          fetchBalances();
+        } : undefined,
+      });
     } finally {
       setSwapping(false);
     }
@@ -398,7 +425,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setSendError(null);
     setSendTxHash(null);
     if (!walletAddress) {
-      setSendError("Please connect your Web3 wallet first.");
+      const err = "Please connect your Web3 wallet first.";
+      setSendError(err);
+      showFailed({
+        initiativeName: 'On-Chain Transfer',
+        title: 'Wallet Connection Required',
+        description: 'You must connect your Binance Smart Chain Web3 wallet before transferring assets.',
+        actionLabel: 'Connect Wallet',
+        onAction: onConnectWallet,
+      });
       return;
     }
     if (!sendRecipient || !ethers.isAddress(sendRecipient)) {
@@ -406,7 +441,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       return;
     }
     if (!sendAmount || isNaN(Number(sendAmount)) || Number(sendAmount) <= 0) {
-      setSendError("Please enter a valid amount greater than 0.");
+      setSendError("Please enter a valid transfer amount greater than 0.");
       return;
     }
 
@@ -442,19 +477,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         title: 'Asset Sent Successfully!',
         badge: `${sendAmount} ${sendAsset}`,
         description: `Transferred ${sendAmount} ${sendAsset} to ${sendRecipient.substring(0, 8)}...`,
+        txHash: hash,
       });
       fetchTxs();
       fetchBalances();
     } catch (err: any) {
       console.error("Send error:", err);
-      setSendError(err?.message || "Failed to submit transaction.");
+      const parsed = parseWeb3Error(err);
+      setSendError(parsed.message);
+
+      showFailed({
+        initiativeName: 'On-Chain Transfer',
+        title: parsed.title,
+        badge: `${sendAsset} Transfer Failed`,
+        description: parsed.message,
+        requirements: parsed.requirements,
+        rawDetails: parsed.rawDetails,
+        actionLabel: parsed.actionLabel,
+        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
+          await switchToBSC();
+          fetchBalances();
+        } : undefined,
+      });
     } finally {
       setIsSending(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto px-4 pt-4 sm:pt-6 pb-28 space-y-4">
+    <div className="w-full max-w-md sm:max-w-lg lg:max-w-xl mx-auto px-4 pt-4 sm:pt-6 pb-36 space-y-4">
 
       {/* ========================================================= */}
       {/* 1. TOP TOTAL BALANCE CARD (Violet Gradient Mirror Glass)    */}
@@ -741,12 +792,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'receive' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-5"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-5 custom-scrollbar"
             >
               {/* STEP 1: OPTIONS (Receive BNB or Receive BHFT) */}
               {receiveStep === 'options' && (
@@ -967,12 +1018,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'send' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-5"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-5 custom-scrollbar"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -1228,12 +1279,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'transfer' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-5"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-5 custom-scrollbar"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -1322,8 +1373,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
 
               {swapError && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">
-                  {swapError}
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{swapError}</span>
+                  </div>
+                  {(swapError.includes("wrong network") || swapError.includes("Binance Smart Chain") || swapError.includes("NETWORK_MISMATCH")) && (
+                    <button
+                      onClick={async () => {
+                        await switchToBSC();
+                        fetchBalances();
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Switch Wallet to BSC Mainnet (Chain 56)</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1360,12 +1426,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'p2p' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-5"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-5 custom-scrollbar"
             >
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -1417,12 +1483,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'history' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+              className="max-w-md w-full my-auto max-h-[90vh] flex flex-col rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-4"
             >
               <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -1491,12 +1557,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'withdraw' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+              className="max-w-md w-full my-auto max-h-[90vh] flex flex-col rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-4"
             >
               <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -1520,13 +1586,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2 shrink-0">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">Account Settlement Status</span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
-                    user.withdrawalStatus === 'SETTLED' ? 'bg-emerald-500/20 text-emerald-400' :
-                    user.withdrawalStatus === 'PENDING' ? 'bg-amber-500/20 text-amber-400' :
+                  <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] ${
+                    user.isVerified || user.withdrawalStatus === 'APPROVED' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                    user.withdrawalStatus === 'SETTLED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                    user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || user.withdrawalStatus === 'PENDING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                     'bg-slate-800 text-slate-400'
                   }`}>
-                    {user.withdrawalStatus || 'NOT_STARTED'}
+                    {user.isVerified || user.withdrawalStatus === 'APPROVED' ? 'VERIFIED • COMING SOON' :
+                     user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? 'PENDING APPROVAL' :
+                     (user.withdrawalStatus || 'NOT_STARTED')}
                   </span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-400">BHFT Withdrawals</span>
+                  <span className="text-violet-300 font-bold">Coming Soon (Mainnet Launch)</span>
                 </div>
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-400">Min. Threshold</span>
@@ -1541,19 +1614,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
                 <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-white">Daily Mining Batch #1024</span>
-                    <span className="text-emerald-400 font-mono text-[10px]">VERIFIED</span>
+                    <span className="font-bold text-white">Daily Mining Settlement Pool</span>
+                    <span className="text-purple-400 font-mono text-[10px]">COMING SOON</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Auto-allocated into pending balance pool</div>
+                  <div className="text-[11px] text-slate-400">Direct BEP-20 BHFT batch distributions will launch on mainnet</div>
                   <div className="text-[10px] text-slate-500 font-mono">Target: {walletAddress ? `${walletAddress.substring(0, 10)}...` : 'Connected Wallet'}</div>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-white">Protocol Verification Fee</span>
-                    <span className="text-emerald-400 font-mono text-[10px]">{user.isVerified ? 'COMPLETED' : 'PENDING'}</span>
+                    <span className="font-bold text-white">Protocol Verification (KYC)</span>
+                    <span className={`font-mono text-[10px] ${user.isVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {user.isVerified ? 'VERIFIED & WHITELISTED' : 'PENDING'}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-400">{user.isVerified ? '$20.00 audit fee paid and unlocked' : 'Pending verification payment on Dashboard'}</div>
+                  <div className="text-[11px] text-slate-400">{user.isVerified ? '$20.00 protocol verification completed on BSC' : 'Pending verification payment on Dashboard'}</div>
                 </div>
               </div>
             </motion.div>
@@ -1566,12 +1641,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {selectedTokenDetail !== 'none' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-4"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-4 custom-scrollbar"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1664,12 +1739,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* ========================================================= */}
       <AnimatePresence>
         {activeModal === 'settings' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="max-w-md w-full rounded-[28px] bg-[#12131F] border border-white/15 p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto"
+              className="max-w-md w-full my-auto max-h-[90vh] overflow-y-auto overscroll-contain rounded-[28px] bg-[#12131F]/95 backdrop-blur-2xl border border-white/20 p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.15)] space-y-4 custom-scrollbar"
             >
               <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">

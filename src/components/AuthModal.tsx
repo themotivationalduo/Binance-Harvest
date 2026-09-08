@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Wallet, Globe, CheckCircle2, AlertCircle, X, ExternalLink, Copy, Check, Sparkles, RefreshCw, Lock } from 'lucide-react';
+import { ShieldCheck, Wallet, Globe, CheckCircle2, AlertCircle, X, ExternalLink, Copy, Check, Sparkles, RefreshCw, Lock, Gift, Zap } from 'lucide-react';
 import { UserProfile } from '../types';
 import { connectWallet, switchToBSC, detectWeb3Providers, signWeb3AuthMessage } from '../services/web3';
-import { getUserProfile, saveUserProfile } from '../services/firebase';
+import { getUserProfile, saveUserProfile, applyReferralCode } from '../services/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { AppLogo } from './AppLogo';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: UserProfile) => void;
   isClosable?: boolean;
+  initialReferralCode?: string;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -18,19 +20,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onLoginSuccess,
   isClosable = true,
+  initialReferralCode = '',
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [requireSignature, setRequireSignature] = useState(false);
+  const [referralInput, setReferralInput] = useState<string>('');
 
   const { showSuccess, showFailed } = useInitiativeFeedback();
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      // Auto-load initial or cached referral code
+      const cachedRef = typeof window !== 'undefined' ? localStorage.getItem('binance_harvest_pending_ref') : null;
+      if (initialReferralCode) {
+        setReferralInput(initialReferralCode);
+      } else if (cachedRef) {
+        setReferralInput(cachedRef);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialReferralCode]);
 
   if (!isOpen) return null;
 
@@ -40,7 +51,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 3000);
     } catch {
-      // Fallback
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 3000);
     }
@@ -71,9 +81,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       // Sync with Firestore profile keyed strictly by on-chain address
-      const profile = await getUserProfile(normalizedAddress);
+      let profile = await getUserProfile(normalizedAddress);
       profile.walletAddress = normalizedAddress;
       await saveUserProfile(normalizedAddress, profile);
+
+      // Handle optional referral code application
+      let referralBoostApplied = false;
+      const refCode = referralInput.trim();
+      if (refCode && !profile.referredBy) {
+        try {
+          const refRes = await applyReferralCode(normalizedAddress, refCode);
+          if (refRes.success && refRes.updatedProfile) {
+            profile = refRes.updatedProfile;
+            referralBoostApplied = true;
+            localStorage.removeItem('binance_harvest_pending_ref');
+          }
+        } catch (refErr) {
+          console.warn("Could not apply referral during auth:", refErr);
+        }
+      }
 
       // Persist active wallet address
       localStorage.setItem('binance_harvest_active_wallet', normalizedAddress);
@@ -83,14 +109,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       showSuccess({
         initiativeName: 'Web3 On-Chain Authentication',
-        title: 'Miner Authenticated On-Chain!',
-        badge: 'BSC Mainnet (56)',
-        description: `Successfully authenticated on-chain identity for ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}. Your cloud hashpower and balance records are loaded.`,
+        title: referralBoostApplied ? 'Authenticated & +5% Boost Active!' : 'Miner Authenticated On-Chain!',
+        badge: referralBoostApplied ? '+5% MINING BOOST' : 'BSC Mainnet (56)',
+        description: referralBoostApplied 
+          ? `Successfully authenticated on-chain identity for ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}. Referral bonus applied: +5% Daily Mining boost is now active!`
+          : `Successfully authenticated on-chain identity for ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}. Your cloud hashpower and balance records are loaded.`,
         details: [
           { label: 'Miner Address', value: `${res.address.substring(0, 10)}...${res.address.substring(res.address.length - 4)}` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
           { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
-          { label: 'Total Balance', value: `${profile.totalPoints.toLocaleString()} PTS` },
+          { label: 'Daily Yield', value: referralBoostApplied ? '+5% Boosted' : 'Base Rate' },
         ],
       });
     } catch (err: any) {
@@ -114,20 +142,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex min-h-screen items-center justify-center animate-fade-in overscroll-contain">
-      <div className="relative w-full max-w-lg my-auto flex flex-col bg-[#0B0E11]/95 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_16px_50px_0_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden">
+      <div className="relative w-full max-w-lg my-auto max-h-[92vh] flex flex-col bg-[#0B0E11]/95 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_16px_50px_0_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden">
         
         {/* Mirror Glass Glow Highlights */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#F3BA2F]/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#00C087]/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
         {/* Modal Header */}
-        <div className="p-4 sm:p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 text-[#F3BA2F] flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-9 h-9 filter drop-shadow-[0_2px_8px_rgba(243,186,47,0.3)]">
-                <path d="M16.622 10.076L12 5.454 7.378 10.076H3.344L12 1.419l8.656 8.657h-4.034zM12 18.546l4.622-4.622h4.034L12 22.58l-8.656-8.656h4.034L12 18.546zM13.931 12L12 10.069 10.069 12 12 13.931 13.931 12zM20.656 12l-2.011-2.012 2.011-2.012L22.668 12l-2.012 2.012L20.656 12zM3.344 12l2.012-2.012L3.344 7.976 1.332 12l2.012 2.012L3.344 12z"/>
-              </svg>
-            </div>
+        <div className="p-4 sm:p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10 shrink-0">
+          <div className="flex items-center gap-3">
+            <AppLogo className="w-11 h-11" rounded="rounded-2xl" alt="BinanceHarvest Official Logo" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate">
@@ -146,7 +170,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {isClosable && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-[#848E9C] hover:text-white hover:bg-white/10 transition shrink-0"
+              className="p-1.5 rounded-xl text-[#848E9C] hover:text-white hover:bg-white/10 transition shrink-0 cursor-pointer"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -155,7 +179,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 space-y-5 relative z-10 max-h-[calc(85vh-120px)] overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-6 space-y-5 relative z-10 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
           
           {/* Error Message */}
           <AnimatePresence>
@@ -175,6 +199,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </AnimatePresence>
 
+          {/* Referral Code Detected Banner */}
+          {referralInput && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-amber-500/10 border border-[#00C087]/40 flex items-center gap-3 backdrop-blur-md shadow-lg shadow-[#00C087]/5">
+              <div className="w-8 h-8 rounded-xl bg-[#00C087]/20 border border-[#00C087]/40 text-[#00C087] flex items-center justify-center shrink-0">
+                <Gift className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-white">Referral Bonus Linked</p>
+                  <span className="text-[10px] font-mono text-[#00C087] font-bold bg-[#00C087]/15 px-1.5 py-0.5 rounded">
+                    +5% DAILY MINING
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 truncate font-mono">
+                  Referrer: {referralInput.substring(0, 10)}...{referralInput.substring(referralInput.length - 4)}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Network Banner */}
           <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -187,6 +231,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <span className="text-[11px] font-mono font-semibold text-[#F3BA2F] px-2.5 py-1 bg-[#F3BA2F]/10 border border-[#F3BA2F]/20 rounded-lg">
               BEP-20
             </span>
+          </div>
+
+          {/* Optional Referral Code Input */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Gift className="w-3.5 h-3.5 text-amber-400" />
+                <span>Referral Code (Optional)</span>
+              </label>
+              <span className="text-[10px] text-amber-400 font-mono">+5% Daily Mining Boost</span>
+            </div>
+            <input
+              type="text"
+              value={referralInput}
+              onChange={(e) => setReferralInput(e.target.value)}
+              placeholder="Paste friend's BSC address (0x...) or link"
+              className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F3BA2F] focus:ring-1 focus:ring-[#F3BA2F] transition backdrop-blur-md"
+            />
           </div>
 
           {/* Cryptographic signature option */}

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
-import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink } from 'lucide-react';
-import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS } from '../services/web3';
+import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink, Users, Gift, Percent, Share2 } from 'lucide-react';
+import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS, switchToBSC } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { DailyLoginStreak } from './DailyLoginStreak';
 import { TransactionStatusIndicator } from './TransactionStatusIndicator';
+import { ReferralCard } from './ReferralCard';
 import { sendPushNotification } from '../services/notifications';
+import { parseWeb3Error } from '../utils/errorParser';
 
 interface DashboardProps {
   user: UserProfile;
@@ -31,9 +33,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const { showSuccess, showFailed } = useInitiativeFeedback();
   const [elapsedMs, setElapsedMs] = useState(0);
 
-  // Calculations
+  // Calculations with Referral Boosts
   const currentTierInfo = ALL_TIERS.find(t => t.tier === user.currentTier) || ALL_TIERS[0];
-  const dailyBHFT = currentTierInfo.bhftPerDay || 0.10;
+  const baseDailyBHFT = currentTierInfo.bhftPerDay || 0.10;
+  
+  // Referral Multiplier Math: 5% per referred user + 5% for being referred
+  const referralCount = user.referralCount || 0;
+  const referrerBonusPct = referralCount * 5;
+  const refereeBonusPct = user.referredBy ? 5 : 0;
+  const totalReferralBonusPct = referrerBonusPct + refereeBonusPct;
+  const referralMultiplier = 1 + (totalReferralBonusPct / 100);
+
+  const dailyBHFT = baseDailyBHFT * referralMultiplier;
   const hourlyBHFT = dailyBHFT / 24;
   const bhftBalance = user.miningBalance || 0;
   const usdValue = bhftBalance * 0.50; // Peg: 1 BHFT = $0.50 USD
@@ -146,47 +157,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return;
     }
 
-    // If the user is already APPROVED (Verified) and clicks withdraw:
-    if (user.withdrawalStatus === 'APPROVED') {
-      if (!isThresholdMet) {
-        const err = `Minimum withdrawal threshold is 100.00 BHFT (≈ $50.00 USD) (You have ${bhftBalance.toFixed(2)} BHFT)`;
-        setErrorMessage(err);
-        showFailed({
-          initiativeName: 'Treasury Settlement',
-          title: 'Threshold Incomplete',
-          badge: `${bhftBalance.toFixed(2)} / 100.00 BHFT`,
-          description: `Minimum withdrawal threshold is 100.00 BHFT (≈ $50.00 USD). Keep mining or upgrade your tier to accelerate your daily BHFT accumulation!`,
-          details: [
-            { label: 'Current Balance', value: `${bhftBalance.toFixed(2)} BHFT` },
-            { label: 'Required Threshold', value: `100.00 BHFT (≈ $50.00 USD)` },
-          ],
-        });
-        return;
-      }
-
-      // Process free withdrawal request (as they are already verified)
-      try {
-        setIsProcessingTx(true);
-        // Submit withdrawal request to admin approval
-        await onUpdateUser({
-          withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
-        });
-        showSuccess({
-          initiativeName: 'Treasury Settlement',
-          title: 'Withdrawal Submitted!',
-          badge: `${bhftBalance.toFixed(2)} BHFT`,
-          description: `Your withdrawal request for ${bhftBalance.toFixed(2)} BHFT has been submitted successfully! The treasury team will verify and release it to yourconnected wallet within 24 hours.`,
-          details: [
-            { label: 'BHFT Settled', value: `${bhftBalance.toFixed(2)} BHFT` },
-            { label: 'Estimated Value', value: `≈ $${usdValue.toFixed(2)} USD` },
-            { label: 'KYC Verification', value: 'Already Verified' },
-          ],
-        });
-        setIsProcessingTx(false);
-      } catch (err: any) {
-        setErrorMessage(err?.message || "Failed to submit withdrawal request.");
-        setIsProcessingTx(false);
-      }
+    // If the user is already APPROVED / Verified: Show Coming Soon status modal just like on wallet page
+    if (user.withdrawalStatus === 'APPROVED' || user.isVerified) {
+      showSuccess({
+        initiativeName: 'BHFT Token Settlement',
+        title: 'BHFT Withdrawals Coming Soon',
+        badge: 'MAINNET STAGING',
+        description: `Direct on-chain BEP-20 BHFT token withdrawals to connected Web3 wallets are currently being finalized for our mainnet smart contract release. Your account is fully verified and your mined balance of ${bhftBalance.toFixed(2)} BHFT is securely allocated.`,
+        details: [
+          { label: 'KYC & Wallet Status', value: 'Verified & Whitelisted' },
+          { label: 'Allocated BHFT', value: `${bhftBalance.toFixed(2)} BHFT (≈ $${usdValue.toFixed(2)} USD)` },
+          { label: 'Minimum Threshold', value: isThresholdMet ? '100.00 BHFT Met' : `${bhftBalance.toFixed(2)} / 100.00 BHFT` },
+          { label: 'Planned Launch', value: 'Coming Soon (Mainnet Phase)' },
+          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+        ],
+      });
       return;
     }
 
@@ -239,16 +224,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
       });
     } catch (err: any) {
       console.error("Withdrawal error:", err);
-      const failReason = err?.reason || err?.message || "Transaction rejected or failed.";
-      setErrorMessage(failReason);
+      const parsed = parseWeb3Error(err);
+      setErrorMessage(parsed.message);
       setIsProcessingTx(false);
 
       showFailed({
         initiativeName: 'Treasury Verification Fee',
-        title: 'Transaction Failed',
-        description: failReason,
-        actionLabel: 'Retry Transaction',
-        onAction: () => handleVerifyAndWithdraw(),
+        title: parsed.title,
+        badge: 'Verification Failed',
+        description: parsed.message,
+        requirements: parsed.requirements,
+        rawDetails: parsed.rawDetails,
+        actionLabel: parsed.actionLabel,
+        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
+          await switchToBSC();
+        } : () => handleVerifyAndWithdraw(),
         details: [
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
           { label: 'Required Fee', value: `${verificationFeeBNB} BNB (≈ $20.00 USD)` },
@@ -267,12 +257,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const tierProgressPercent = isMaxTier ? 100 : Math.min(100, (user.totalPoints / nextTierPointsRequired) * 100);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] bg-[#0B0E11] text-[#EAECEF] pb-28">
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] bg-[#0B0E11] text-[#EAECEF] pb-36 sm:pb-40 overflow-y-auto">
       
       {/* Rate Breakdown Modal */}
       {showRateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-          <div className="relative w-full max-w-lg bg-[#1E2329] border border-[rgba(255,255,255,0.12)] rounded-2xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 overflow-y-auto overscroll-contain animate-fade-in">
+          <div className="relative w-full max-w-lg my-auto max-h-[90vh] overflow-y-auto overscroll-contain bg-[#1E2329]/95 backdrop-blur-2xl border border-[rgba(255,255,255,0.15)] rounded-2xl p-6 shadow-2xl custom-scrollbar">
             <button
               onClick={() => setShowRateModal(false)}
               className="absolute top-4 right-4 text-[#848E9C] hover:text-white transition"
@@ -290,23 +280,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             <div className="space-y-4 text-xs font-mono">
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
-                <p className="text-[#848E9C]">1. Base Reward Formula:</p>
-                <p className="text-[#F3BA2F]">Daily BHFT = 0.5 * (2 ^ (Tier - 1))</p>
+                <p className="text-[#848E9C]">1. Base Tier Rig (Tier {user.currentTier}):</p>
+                <p className="text-white">Base Output = <strong className="text-[#F3BA2F]">{baseDailyBHFT.toFixed(4)} BHFT / Day</strong></p>
+              </div>
+
+              <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1.5">
+                <p className="text-[#848E9C]">2. Referral Hashpower Booster:</p>
+                <p className="text-white">Friends Invited ({referralCount}) = <span className="text-[#F3BA2F]">+{referrerBonusPct}%</span></p>
+                <p className="text-white">Referee Link Active = <span className="text-[#00C087]">{user.referredBy ? '+5%' : '0%'}</span></p>
+                <p className="text-amber-300 font-bold">Total Boost = +{totalReferralBonusPct}% (Multiplier: {referralMultiplier.toFixed(2)}x)</p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
-                <p className="text-[#848E9C]">2. Your Current Tier (Tier {user.currentTier}):</p>
-                <p className="text-white">0.5 * (2 ^ ({user.currentTier} - 1)) = <strong className="text-[#F3BA2F]">{dailyBHFT.toFixed(2)} BHFT / Day</strong></p>
+                <p className="text-[#848E9C]">3. Effective Boosted Daily Mining:</p>
+                <p className="text-white">{baseDailyBHFT.toFixed(4)} × {referralMultiplier.toFixed(2)} = <strong className="text-[#F3BA2F]">{dailyBHFT.toFixed(4)} BHFT / Day</strong></p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
-                <p className="text-[#848E9C]">3. Hourly Generation Rate:</p>
-                <p className="text-white">{dailyBHFT.toFixed(2)} / 24 hours = <strong className="text-[#00C087]">{hourlyBHFT.toFixed(4)} BHFT / Hour</strong></p>
+                <p className="text-[#848E9C]">4. Hourly Generation Rate:</p>
+                <p className="text-white">{dailyBHFT.toFixed(4)} / 24 hours = <strong className="text-[#00C087]">{hourlyBHFT.toFixed(6)} BHFT / Hour</strong></p>
               </div>
 
               <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
-                <p className="text-[#848E9C]">4. USDT Equivalent Baseline:</p>
-                <p className="text-white">1 BHFT = 500 Points = 0.50 USDT (Pegged)</p>
+                <p className="text-[#848E9C]">5. USDT Equivalent Baseline:</p>
+                <p className="text-white">1 BHFT = 0.50 USDT (Pegged)</p>
               </div>
             </div>
 
@@ -607,6 +604,130 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
+        {/* Dedicated Referral Network & Mining Increase Bonus Section */}
+        <div className="rounded-3xl bg-gradient-to-r from-slate-900/80 via-slate-900/60 to-slate-900/80 backdrop-blur-xl border border-white/10 p-5 sm:p-6 shadow-xl relative overflow-hidden">
+          {/* Mirror Glass Ambient Glow */}
+          <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-[#00C087]/10 via-[#F3BA2F]/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-[#F3BA2F]/30 to-[#00C087]/20 border border-[#F3BA2F]/40 flex items-center justify-center text-[#F3BA2F] shrink-0 shadow-md">
+                <Users className="w-5 h-5 text-[#F3BA2F]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
+                    Referral Network & Mining Increase Bonus
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#00C087]/20 text-[#00C087] border border-[#00C087]/30 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    +5% Per Referral
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Live tracking of referred BSC miners and aggregate hash rate increase bonuses.
+                </p>
+              </div>
+            </div>
+
+            <a
+              href="#referral-program-section"
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#F3BA2F] text-xs font-semibold flex items-center gap-1.5 transition self-start sm:self-auto cursor-pointer"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Invite Friends</span>
+            </a>
+          </div>
+
+          {/* Metric Badges Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 relative z-10">
+            
+            {/* 1. Successfully Referred Users */}
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-medium">Successfully Referred</span>
+                <Users className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-black mono text-white">
+                  {referralCount}
+                </span>
+                <span className="text-xs text-slate-400 font-medium">
+                  {referralCount === 1 ? 'Active User' : 'Active Users'}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-300 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>+{referrerBonusPct}% from referrals</span>
+              </div>
+            </div>
+
+            {/* 2. Total Mining Increase Percentage Bonus */}
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-medium">Total Mining Increase</span>
+                <Percent className="w-4 h-4 text-[#00C087]" />
+              </div>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-black mono text-[#00C087]">
+                  +{totalReferralBonusPct}%
+                </span>
+                <span className="text-xs text-emerald-400/80 font-bold">
+                  Bonus Yield
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-300 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00C087]"></span>
+                <span>{referralMultiplier.toFixed(2)}x Speed Multiplier</span>
+              </div>
+            </div>
+
+            {/* 3. Extra Daily Mined BHFT */}
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-medium">Extra Daily Bonus</span>
+                <TrendingUp className="w-4 h-4 text-[#F3BA2F]" />
+              </div>
+              <div className="mt-2.5 flex items-baseline gap-1.5">
+                <span className="text-2xl font-black mono text-[#F3BA2F]">
+                  +{(dailyBHFT - baseDailyBHFT).toFixed(4)}
+                </span>
+                <span className="text-xs text-slate-400">BHFT/d</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                <span>Total: {dailyBHFT.toFixed(4)} BHFT/day</span>
+              </div>
+            </div>
+
+            {/* 4. Referee Kickback Status */}
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-md flex flex-col justify-between">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-medium">Referee Status</span>
+                <Gift className="w-4 h-4 text-sky-400" />
+              </div>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className={`text-2xl font-black mono ${user.referredBy ? 'text-sky-400' : 'text-slate-500'}`}>
+                  {user.referredBy ? '+5%' : '0%'}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {user.referredBy ? 'Boost Active' : 'Unlinked'}
+                </span>
+              </div>
+              <div className="mt-2 text-[10px] text-slate-400 truncate">
+                {user.referredBy ? `Linked to ${user.referredBy.substring(0, 6)}...` : 'Enter a code below to activate'}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Referral Program & Mining Boost Feature */}
+        <ReferralCard
+          user={user}
+          baseDailyBHFT={baseDailyBHFT}
+          onUpdateUser={onUpdateUser}
+        />
+
         {/* Daily Login Streak Component (Firestore-backed) */}
         <DailyLoginStreak user={user} onUpdateUser={onUpdateUser} />
 
@@ -622,41 +743,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xl font-bold text-white">Verification & Withdrawal</h3>
               <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${
-                user.withdrawalStatus === 'APPROVED' ? 'bg-[#00C087]/20 text-[#00C087]' :
+                user.withdrawalStatus === 'APPROVED' || user.isVerified ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
                 user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? 'bg-[#F3BA2F]/20 text-[#F3BA2F] animate-pulse' :
                 'bg-white/10 text-slate-300'
               }`}>
-                {user.withdrawalStatus === 'APPROVED' ? 'APPROVED' :
+                {user.withdrawalStatus === 'APPROVED' || user.isVerified ? 'VERIFIED • COMING SOON' :
                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? 'PENDING APPROVAL' :
                  'READY TO VERIFY'}
               </span>
             </div>
-            <p className="text-sm text-[#848E9C] mb-6 max-w-xl">
-              To unlock withdrawals, your account must undergo a one-time blockchain verification. This verification fee (<strong className="text-[#F3BA2F]">{verificationFeeBNB} BNB</strong> ≈ $20.00 USDT) is sent directly to the protocol treasury to secure the network. You can verify your account early at any time!
-            </p>
+
+            {user.withdrawalStatus === 'APPROVED' || user.isVerified ? (
+              <p className="text-sm text-slate-300 mb-6 max-w-xl leading-relaxed">
+                Your account is <strong className="text-emerald-400 font-semibold">Verified & Whitelisted</strong>! Direct on-chain BEP-20 BHFT token withdrawals to your connected Web3 wallet are currently in final audit and will launch with our mainnet smart contract release. Your mined balance of <strong className="text-[#F3BA2F] mono font-bold">{bhftBalance.toFixed(2)} BHFT</strong> (≈ ${usdValue.toFixed(2)} USDT) is securely allocated.
+              </p>
+            ) : user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? (
+              <p className="text-sm text-slate-300 mb-6 max-w-xl leading-relaxed">
+                Your account verification fee has been broadcasted to Binance Smart Chain. Once confirmed, your account will be verified and queued for the mainnet BHFT withdrawal release!
+              </p>
+            ) : (
+              <p className="text-sm text-[#848E9C] mb-6 max-w-xl leading-relaxed">
+                To unlock withdrawals upon mainnet release, your account must undergo a one-time blockchain verification. This verification fee (<strong className="text-[#F3BA2F]">{verificationFeeBNB} BNB</strong> ≈ $20.00 USDT) is sent directly to the protocol treasury to whitelist your address. You can pre-verify early at any time!
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center gap-4">
               <motion.button
                 whileHover={
-                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'
                     ? {}
                     : { scale: 1.02 }
                 }
                 whileTap={
-                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'
                     ? {}
                     : { scale: 0.97 }
                 }
                 onClick={handleVerifyAndWithdraw}
                 disabled={
                   isProcessingTx ||
-                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ||
-                  (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'
                 }
-                className={`px-8 py-3.5 rounded-xl font-bold text-sm transition flex items-center gap-2.5 ${
-                  user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || (user.withdrawalStatus === 'APPROVED' && !isThresholdMet)
+                className={`px-8 py-3.5 rounded-xl font-bold text-sm transition flex items-center gap-2.5 cursor-pointer ${
+                  user.withdrawalStatus === 'APPROVED' || user.isVerified
+                    ? 'bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:brightness-110 text-white shadow-lg shadow-violet-600/30'
+                    : user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL'
                     ? 'bg-[#2B3139] text-[#848E9C] border border-white/5 cursor-not-allowed'
-                    : 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black cursor-pointer shadow-lg shadow-[#F3BA2F]/20'
+                    : 'bg-[#F3BA2F] hover:bg-[#e2ad23] text-black shadow-lg shadow-[#F3BA2F]/20'
                 }`}
               >
                 {isProcessingTx ? (
@@ -664,16 +797,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <Loader2 className="w-4 h-4 animate-spin text-black" />
                     <span>Processing...</span>
                   </>
-                ) : user.withdrawalStatus === 'APPROVED' ? (
-                  isThresholdMet ? (
-                    <>
-                      <span>Withdraw Mined BHFT ({bhftBalance.toFixed(2)} BHFT)</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Verified (Need 100.00 BHFT threshold)</span>
-                    </>
-                  )
+                ) : user.withdrawalStatus === 'APPROVED' || user.isVerified ? (
+                  <>
+                    <Clock className="w-4 h-4 text-violet-200" />
+                    <span>BHFT Withdrawals (Coming Soon)</span>
+                  </>
                 ) : user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-[#F3BA2F]" />
@@ -681,14 +809,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>{isThresholdMet ? 'Verify & Withdraw' : 'Verify Account'} ({verificationFeeBNB} BNB)</span>
+                    <span>Verify Account ({verificationFeeBNB} BNB)</span>
                   </>
                 )}
               </motion.button>
 
               <button
                 onClick={onNavigateToTiers}
-                className="border border-[rgba(255,255,255,0.08)] hover:bg-white/5 px-6 py-3 rounded text-sm text-[#848E9C] hover:text-white transition"
+                className="border border-[rgba(255,255,255,0.08)] hover:bg-white/5 px-6 py-3 rounded-xl text-sm text-[#848E9C] hover:text-white transition cursor-pointer"
               >
                 View Tier Rigs
               </button>

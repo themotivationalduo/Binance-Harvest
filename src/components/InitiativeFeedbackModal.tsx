@@ -21,6 +21,8 @@ export interface InitiativeFeedbackData {
   txHash?: string;
   badge?: string;
   details?: { label: string; value: string }[];
+  requirements?: string[];
+  rawDetails?: string;
   actionLabel?: string;
   onAction?: () => void;
   autoCloseMs?: number;
@@ -55,7 +57,7 @@ export const InitiativeFeedbackModal: React.FC<InitiativeFeedbackModalProps> = (
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overscroll-contain">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
         {/* Backdrop motion */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -88,7 +90,7 @@ export const InitiativeFeedbackModal: React.FC<InitiativeFeedbackModalProps> = (
             damping: 22,
             duration: isSuccess ? undefined : 0.5,
           }}
-          className={`relative w-full max-w-md overflow-hidden rounded-3xl p-6 sm:p-8 text-center shadow-2xl backdrop-blur-2xl border transition-all ${
+          className={`relative w-full max-w-md my-auto max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-6 sm:p-8 text-center shadow-2xl backdrop-blur-2xl border transition-all ${
             isSuccess
               ? 'bg-[#1E2329]/95 border-emerald-500/30 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8),0_0_40px_rgba(0,192,135,0.18)] ring-1 ring-emerald-500/20'
               : 'bg-[#1E2329]/95 border-red-500/30 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8),0_0_40px_rgba(239,68,68,0.22)] ring-1 ring-red-500/20'
@@ -247,6 +249,24 @@ export const InitiativeFeedbackModal: React.FC<InitiativeFeedbackModalProps> = (
             {feedback.description}
           </motion.p>
 
+          {/* Requirements Checklist (What user needs to provide or do) */}
+          {feedback.requirements && feedback.requirements.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-3.5 mb-4 text-xs text-left space-y-2">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold uppercase tracking-wider text-[10px]">
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>What you need to provide or check:</span>
+              </div>
+              <ul className="space-y-1.5 text-slate-300">
+                {feedback.requirements.map((req, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-amber-400 font-bold mt-0.5">•</span>
+                    <span className="leading-snug">{req}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Extra Details (if any) */}
           {feedback.details && feedback.details.length > 0 && (
             <div className="bg-slate-950/60 border border-white/10 rounded-2xl p-3.5 mb-4 text-xs space-y-2 text-left">
@@ -256,6 +276,20 @@ export const InitiativeFeedbackModal: React.FC<InitiativeFeedbackModalProps> = (
                   <span className="font-mono text-white font-medium truncate max-w-[200px]">{d.value}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Raw / Developer Details Collapsible */}
+          {feedback.rawDetails && (
+            <div className="mb-4 text-left">
+              <details className="group text-[10px] text-slate-500 bg-black/40 border border-white/5 rounded-xl p-2.5">
+                <summary className="cursor-pointer text-slate-400 hover:text-slate-300 font-mono select-none">
+                  Technical error details (click to expand)
+                </summary>
+                <div className="mt-2 font-mono text-[9px] text-slate-400 break-all bg-black/60 p-2 rounded border border-white/5 max-h-24 overflow-y-auto">
+                  {feedback.rawDetails}
+                </div>
+              </details>
             </div>
           )}
 

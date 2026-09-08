@@ -19,7 +19,11 @@
         "lastStreakClaimDate": { "type": "string" },
         "totalStreakPointsClaimed": { "type": "number" },
         "createdAt": { "type": "string" },
-        "lastActiveTimestamp": { "type": "string" }
+        "lastActiveTimestamp": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "referralCount": { "type": "number" },
+        "referredUsers": { "type": "array", "items": { "type": "string" } },
+        "referralBonusPercent": { "type": "number" }
       },
       "required": ["walletAddress", "currentTier", "totalPoints"]
     },

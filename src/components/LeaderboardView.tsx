@@ -17,7 +17,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ user }) => {
   ];
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-4 pt-6">
+    <div className="space-y-6 pb-36 sm:pb-40 max-w-7xl mx-auto px-4 pt-6 overflow-y-auto">
       
       {/* Header */}
       <div className="rounded-3xl bg-slate-900/60 backdrop-blur-xl border border-white/10 p-6 lg:p-8 shadow-2xl">

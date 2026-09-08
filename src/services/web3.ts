@@ -21,9 +21,16 @@ const CHAINLINK_FEED_ABI = [
 const CHAINLINK_BNB_USD_ADDRESS = "0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE";
 
 let lastKnownBNBPrice = 750;
+let lastBNBPriceFetchTime = 0;
+const BNB_PRICE_CACHE_MS = 25000; // 25s cache to keep UI lightning fast
 
 export async function fetchLiveBNBPrice(): Promise<number> {
-  const fetchWithTimeout = async (url: string, ms = 3000): Promise<Response> => {
+  const now = Date.now();
+  if (now - lastBNBPriceFetchTime < BNB_PRICE_CACHE_MS && lastKnownBNBPrice > 0) {
+    return lastKnownBNBPrice;
+  }
+
+  const fetchWithTimeout = async (url: string, ms = 2500): Promise<Response> => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), ms);
     try {
@@ -98,6 +105,7 @@ export async function fetchLiveBNBPrice(): Promise<number> {
       const price = await source();
       if (typeof price === 'number' && !isNaN(price) && price > 0) {
         lastKnownBNBPrice = price;
+        lastBNBPriceFetchTime = Date.now();
         return price;
       }
     } catch {
@@ -106,6 +114,7 @@ export async function fetchLiveBNBPrice(): Promise<number> {
   }
 
   // Gracefully return last known price
+  lastBNBPriceFetchTime = Date.now();
   return lastKnownBNBPrice;
 }
 
@@ -505,7 +514,22 @@ export async function executeUSDTtoBNBSwap(
 ): Promise<string> {
   const userAddress = await signer.getAddress();
   const provider = signer.provider;
-  if (!provider) throw new Error("No provider found on signer");
+  if (!provider) throw new Error("No provider found on signer. Please connect your Web3 wallet.");
+
+  // 1. Validate Network (Binance Smart Chain Mainnet: Chain ID 56)
+  const network = await provider.getNetwork();
+  if (Number(network.chainId) !== 56) {
+    const switched = await switchToBSC();
+    if (!switched) {
+      throw new Error("NETWORK_MISMATCH: Your wallet is connected to the wrong network. Please switch your Web3 wallet to Binance Smart Chain Mainnet (Chain ID 56).");
+    }
+  }
+
+  // 2. Validate Gas Reserve (Need small BNB for approval + swap)
+  const bnbGasBalance = await provider.getBalance(userAddress).catch(() => 0n);
+  if (bnbGasBalance < ethers.parseEther("0.0008")) {
+    throw new Error("INSUFFICIENT_BNB_GAS: Your wallet does not have enough BNB to pay for the Binance Smart Chain network gas fee. Swapping requires approx. 0.002 BNB (~$1.20 USD).");
+  }
 
   const usdtContract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
   const routerContract = new ethers.Contract(PANCAKE_ROUTER_ADDRESS, PANCAKE_ROUTER_ABI, signer);
@@ -513,36 +537,65 @@ export async function executeUSDTtoBNBSwap(
   const amountIn = ethers.parseUnits(usdtAmountStr, 18);
   const minAmountOut = ethers.parseUnits(minBnbOutStr, 18);
 
-  // Check USDT balance
-  const balance: bigint = await usdtContract.balanceOf(userAddress);
+  // 3. Check USDT balance safely
+  let balance: bigint = 0n;
+  try {
+    balance = await usdtContract.balanceOf(userAddress);
+  } catch (err: any) {
+    // Fallback query via public BSC provider in case injected provider threw network exception
+    try {
+      const publicBsc = getPublicBscProvider();
+      const publicUsdt = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, publicBsc);
+      balance = await publicUsdt.balanceOf(userAddress);
+    } catch {
+      throw new Error("NETWORK_MISMATCH: Could not read BEP-20 USDT contract. Please make sure your wallet is on Binance Smart Chain Mainnet (Chain ID 56).");
+    }
+  }
+
   if (balance < amountIn) {
-    throw new Error(`Insufficient USDT balance. You have ${ethers.formatUnits(balance, 18)} USDT but need ${usdtAmountStr} USDT.`);
+    const formatted = ethers.formatUnits(balance, 18);
+    throw new Error(`Insufficient USDT balance: You entered ${usdtAmountStr} USDT, but your wallet holds ${Number(formatted).toFixed(2)} BEP-20 USDT on Binance Smart Chain.`);
   }
 
-  // Check Allowance
-  const currentAllowance: bigint = await usdtContract.allowance(userAddress, PANCAKE_ROUTER_ADDRESS);
-  if (currentAllowance < amountIn) {
-    console.log("Approving USDT for PancakeSwap Router...");
-    const approveTx = await usdtContract.approve(PANCAKE_ROUTER_ADDRESS, ethers.MaxUint256);
-    await approveTx.wait(1);
-    console.log("USDT approved successfully!");
+  // 4. Check Allowance for PancakeSwap Router
+  try {
+    const currentAllowance: bigint = await usdtContract.allowance(userAddress, PANCAKE_ROUTER_ADDRESS);
+    if (currentAllowance < amountIn) {
+      console.log("Approving USDT for PancakeSwap Router...");
+      const approveTx = await usdtContract.approve(PANCAKE_ROUTER_ADDRESS, ethers.MaxUint256);
+      await approveTx.wait(1);
+      console.log("USDT approved successfully for PancakeSwap!");
+    }
+  } catch (err: any) {
+    if (err?.code === 4001 || err?.message?.includes("User rejected") || err?.message?.includes("user rejected")) {
+      throw new Error("Approval rejected: You declined the USDT approval in your wallet.");
+    }
+    throw err;
   }
 
-  // Swap
+  // 5. Execute Swap
   const path = [USDT_ADDRESS, WBNB_ADDRESS];
   const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 mins deadline
 
-  console.log("Executing SwapExactTokensForETHSupportingFeeOnTransferTokens...");
-  const swapTx = await routerContract.swapExactTokensForETHSupportingFeeOnTransferTokens(
-    amountIn,
-    minAmountOut * 95n / 100n, // 5% slippage tolerance
-    path,
-    userAddress,
-    deadline
-  );
+  try {
+    console.log("Executing SwapExactTokensForETHSupportingFeeOnTransferTokens on PancakeSwap...");
+    const swapTx = await routerContract.swapExactTokensForETHSupportingFeeOnTransferTokens(
+      amountIn,
+      minAmountOut * 95n / 100n, // 5% slippage tolerance
+      path,
+      userAddress,
+      deadline
+    );
 
-  const receipt = await swapTx.wait(1);
-  return receipt?.hash || swapTx.hash;
+    const receipt = await swapTx.wait(1);
+    return receipt?.hash || swapTx.hash;
+  } catch (err: any) {
+    console.error("PancakeSwap execution error:", err);
+    if (err?.code === 4001 || err?.message?.includes("User rejected") || err?.message?.includes("user rejected")) {
+      throw new Error("Swap cancelled: You rejected the swap transaction in your wallet.");
+    }
+    throw err;
+  }
 }
 
 export async function sendNativeBNB(
@@ -551,8 +604,26 @@ export async function sendNativeBNB(
   amountBNB: string
 ): Promise<string> {
   if (!ethers.isAddress(recipientAddress)) {
-    throw new Error("Invalid recipient BSC address format.");
+    throw new Error("Invalid recipient address format. Must be a valid 0x Binance Smart Chain address.");
   }
+
+  if (signer.provider) {
+    const network = await signer.provider.getNetwork();
+    if (Number(network.chainId) !== 56) {
+      const switched = await switchToBSC();
+      if (!switched) {
+        throw new Error("NETWORK_MISMATCH: Please switch your wallet to Binance Smart Chain Mainnet (Chain ID 56).");
+      }
+    }
+
+    const userAddress = await signer.getAddress();
+    const balance = await signer.provider.getBalance(userAddress);
+    const amountWei = ethers.parseEther(amountBNB);
+    if (balance < amountWei) {
+      throw new Error(`Insufficient BNB balance: You tried to send ${amountBNB} BNB, but your wallet only holds ${Number(ethers.formatEther(balance)).toFixed(4)} BNB.`);
+    }
+  }
+
   const amountWei = ethers.parseEther(amountBNB);
   const tx = await signer.sendTransaction({
     to: recipientAddress,
@@ -569,8 +640,19 @@ export async function transferBEP20Token(
   amountFormatted: string
 ): Promise<string> {
   if (!ethers.isAddress(recipientAddress)) {
-    throw new Error("Invalid recipient BSC address format.");
+    throw new Error("Invalid recipient address format. Must be a valid 0x Binance Smart Chain address.");
   }
+
+  if (signer.provider) {
+    const network = await signer.provider.getNetwork();
+    if (Number(network.chainId) !== 56) {
+      const switched = await switchToBSC();
+      if (!switched) {
+        throw new Error("NETWORK_MISMATCH: Please switch your wallet to Binance Smart Chain Mainnet (Chain ID 56).");
+      }
+    }
+  }
+
   const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
   const amountWei = ethers.parseUnits(amountFormatted, 18);
   const tx = await contract.transfer(recipientAddress, amountWei);

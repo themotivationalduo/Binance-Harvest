@@ -10,6 +10,13 @@
   --text-muted: #848E9C;
 }
 
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   background-color: var(--bg-primary);
   color: #EAECEF;
@@ -17,6 +24,19 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 100vh;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+}
+
+/* Hardware accelerated animations & smooth transitions */
+.mirror-glass {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transform: translateZ(0);
+}
+
+.will-change-transform {
+  will-change: transform, opacity;
 }
 
 .mono {
@@ -24,6 +44,11 @@ body {
 }
 
 /* Custom smooth scrollbar for mirror glass containers */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(243, 186, 47, 0.4) transparent;
+  -webkit-overflow-scrolling: touch;
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }

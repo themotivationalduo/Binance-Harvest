@@ -43,7 +43,7 @@ export const HelpView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 pb-24">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 pb-36 sm:pb-40 overflow-y-auto">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-extrabold text-white flex items-center justify-center gap-3">
           <HelpCircle className="w-8 h-8 text-[#F3BA2F]" />
