@@ -29,21 +29,19 @@ export default function App() {
   });
 
   useEffect(() => {
-    // 1. Detect referral links from pathname or search params:
-    // e.g. /ref-0x123..., /ref/0x123..., ?ref=0x123..., ?r=0x123...
+    // 1. Detect referral links from pathname, search params, hash, or full URL:
+    // e.g. /?ref=0x123..., /#ref=0x123..., /ref-0x123..., /ref/0x123..., ?r=0x123...
     const pathname = window.location.pathname;
     const search = window.location.search;
+    const hash = window.location.hash;
+    const fullHref = window.location.href;
 
     let detectedRef = '';
 
-    const pathMatch = pathname.match(/ref[-/](0x[a-fA-F0-9]{40})/i);
-    if (pathMatch) {
-      detectedRef = pathMatch[1].toLowerCase();
-    }
-
-    if (!detectedRef && search) {
+    // A. Query parameter check (?ref=0x... or ?r=0x...)
+    if (search) {
       const params = new URLSearchParams(search);
-      const queryRef = params.get('ref') || params.get('r');
+      const queryRef = params.get('ref') || params.get('r') || params.get('referrer');
       if (queryRef) {
         const queryMatch = queryRef.match(/0x[a-fA-F0-9]{40}/i);
         if (queryMatch) {
@@ -52,11 +50,35 @@ export default function App() {
       }
     }
 
+    // B. Pathname check (/ref-0x... or /ref/0x...)
+    if (!detectedRef && pathname) {
+      const pathMatch = pathname.match(/ref[-/](0x[a-fA-F0-9]{40})/i);
+      if (pathMatch) {
+        detectedRef = pathMatch[1].toLowerCase();
+      }
+    }
+
+    // C. Hash parameter check (#ref=0x... or #ref-0x...)
+    if (!detectedRef && hash) {
+      const hashMatch = hash.match(/(?:ref|r)[=-](0x[a-fA-F0-9]{40})/i) || hash.match(/0x[a-fA-F0-9]{40}/i);
+      if (hashMatch) {
+        detectedRef = hashMatch[1] ? hashMatch[1].toLowerCase() : hashMatch[0].toLowerCase();
+      }
+    }
+
+    // D. Full href fallback if 'ref' appears anywhere before an address
+    if (!detectedRef && fullHref.toLowerCase().includes('ref')) {
+      const fullMatch = fullHref.match(/0x[a-fA-F0-9]{40}/i);
+      if (fullMatch) {
+        detectedRef = fullMatch[0].toLowerCase();
+      }
+    }
+
     if (detectedRef) {
       setPendingReferralCode(detectedRef);
       localStorage.setItem('binance_harvest_pending_ref', detectedRef);
       setShowAuthModal(true);
-      // Clean up URL to standard /dashboard while preserving the state
+      // Clean up URL to standard /dashboard while preserving the referral state
       window.history.replaceState(null, '', '/dashboard');
       setActiveTab('dashboard');
     }

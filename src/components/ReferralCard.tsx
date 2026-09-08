@@ -40,8 +40,8 @@ export const ReferralCard: React.FC<ReferralCardProps> = ({
 
   const userAddress = user.walletAddress || '';
   const referralLink = typeof window !== 'undefined'
-    ? `${window.location.origin}/ref-${userAddress}`
-    : `https://binanceharvest.vercel.app/ref-${userAddress}`;
+    ? `${window.location.origin}/?ref=${userAddress}`
+    : `https://binanceharvest.vercel.app/?ref=${userAddress}`;
 
   // Multiplier math
   const referralCount = user.referralCount || 0;
