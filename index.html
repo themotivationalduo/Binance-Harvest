@@ -3,23 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // Prevent polyfills (like cross-fetch from WalletConnect) from crashing the app
-      // when they try to overwrite window.fetch in the sandbox environment.
+      // Prevent polyfills (such as cross-fetch used by WalletConnect/Web3 libraries) from crashing the app
+      // when assigning 'fetch' on objects inheriting from Window or when attempting to set window.fetch.
       (function() {
         try {
-          const desc = Object.getOwnPropertyDescriptor(window, 'fetch');
-          if (desc && desc.get && !desc.set) {
-            Object.defineProperty(window, 'fetch', {
-              get: desc.get,
-              set: function(val) {
-                console.warn('Ignored polyfill setting window.fetch');
-              },
-              configurable: true,
-              enumerable: desc.enumerable
-            });
+          function makeSettable(targetObj, prop) {
+            if (!targetObj) return;
+
+            // 1. Walk the prototype chain to ensure any existing getter also has a setter
+            let p = targetObj;
+            while (p) {
+              try {
+                const desc = Object.getOwnPropertyDescriptor(p, prop);
+                if (desc) {
+                  if (desc.get && !desc.set) {
+                    const origGet = desc.get;
+                    try {
+                      Object.defineProperty(p, prop, {
+                        get: origGet,
+                        set: function(val) {
+                          try {
+                            Object.defineProperty(this, prop, {
+                              value: val,
+                              writable: true,
+                              configurable: true,
+                              enumerable: true
+                            });
+                          } catch (_) {
+                            this[prop] = val;
+                          }
+                        },
+                        configurable: true,
+                        enumerable: desc.enumerable
+                      });
+                    } catch (_) {}
+                  }
+                  break;
+                }
+              } catch (_) {}
+              p = Object.getPrototypeOf(p);
+            }
+
+            // 2. Define an accessor on targetObj directly so instances inheriting from it can set 'this[prop]'
+            try {
+              let currentVal = targetObj[prop];
+              Object.defineProperty(targetObj, prop, {
+                get: function() {
+                  return currentVal;
+                },
+                set: function(val) {
+                  if (this === targetObj) {
+                    currentVal = val;
+                  } else {
+                    try {
+                      Object.defineProperty(this, prop, {
+                        value: val,
+                        writable: true,
+                        configurable: true,
+                        enumerable: true
+                      });
+                    } catch (_) {
+                      this[prop] = val;
+                    }
+                  }
+                },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (_) {}
+          }
+
+          if (typeof window !== 'undefined') {
+            makeSettable(window, 'fetch');
+            makeSettable(window, 'Headers');
+            makeSettable(window, 'Request');
+            makeSettable(window, 'Response');
+          }
+          if (typeof globalThis !== 'undefined' && globalThis !== window) {
+            makeSettable(globalThis, 'fetch');
           }
         } catch (e) {
-          console.error(e);
+          console.warn('Polyfill guard initialization warning:', e);
         }
       })();
     </script>
