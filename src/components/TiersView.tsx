@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, TierInfo, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, CheckCircle2, ArrowUpRight, Loader2, Sparkles } from 'lucide-react';
-import { sendBNBTransaction, switchToBSC } from '../services/web3';
+import { sendBNBTransaction, switchToBSC, getOrInitSigner } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -59,13 +59,10 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
     try {
       setUpgradingTier(targetTier);
       let signer: ethers.Signer | null = null;
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
-          signer = await provider.getSigner();
-        } catch (e) {
-          console.warn("Could not get signer from window.ethereum, using verified transaction mode:", e);
-        }
+      try {
+        signer = await getOrInitSigner();
+      } catch (e) {
+        console.warn("Could not get signer, using verified transaction mode:", e);
       }
 
       // Dynamic USD upgrade fee sent to Treasury Wallet

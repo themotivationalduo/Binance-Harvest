@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
 import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink, Users, Gift, Percent, Share2 } from 'lucide-react';
-import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS, switchToBSC } from '../services/web3';
+import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS, switchToBSC, getOrInitSigner } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence } from 'motion/react';
@@ -182,13 +182,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
       setIsProcessingTx(true);
       
       let signer: ethers.Signer | null = null;
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        try {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
-          signer = await provider.getSigner();
-        } catch (e) {
-          console.warn("Could not get signer from window.ethereum, using verified transaction mode:", e);
-        }
+      try {
+        signer = await getOrInitSigner();
+      } catch (e) {
+        console.warn("Could not get signer, using verified transaction mode:", e);
       }
 
       // Send $20 verification fee in BNB to Treasury Wallet

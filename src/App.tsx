@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { BottomNav, ActiveTab } from './components/BottomNav';
 import { TabSkeleton } from './components/TabSkeleton';
 import { UserProfile, ADMIN_WALLETS } from './types';
-import { fetchLiveBNBPrice, connectWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
+import { fetchLiveBNBPrice, connectWallet, disconnectWallet, reconnectExistingWallet, getRealWalletBalance, TREASURY_WALLET } from './services/web3';
 import { getUserProfile, updateUserProfileFields, subscribeToUserProfile } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
 import { resolveInitialRoute, VALID_TABS } from './utils/referral';
@@ -170,6 +170,9 @@ export default function App() {
     if (saved) {
       setWalletAddress(saved);
       syncWalletBalance(saved);
+      reconnectExistingWallet().catch((e) => {
+        console.warn("Silent session restoration attempt:", e);
+      });
     }
 
     if (typeof window !== 'undefined' && (window as any).ethereum) {
@@ -224,7 +227,12 @@ export default function App() {
     setShowAuthModal(true);
   };
 
-  const handleDisconnectWallet = () => {
+  const handleDisconnectWallet = async () => {
+    try {
+      await disconnectWallet();
+    } catch (e) {
+      console.warn("Disconnect error:", e);
+    }
     setWalletAddress(null);
     setWalletBalance('0.0000');
     localStorage.removeItem('binance_harvest_active_wallet');

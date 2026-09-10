@@ -45,7 +45,9 @@ import {
   BHFT_TOTAL_SUPPLY,
   addBHFTToWallet,
   sendNativeBNB,
-  transferBEP20Token
+  transferBEP20Token,
+  getOrInitSigner,
+  getActiveBrowserProvider
 } from '../services/web3';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
@@ -176,8 +178,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   useEffect(() => {
     const fetchGasFee = async () => {
       try {
-        if (typeof window !== 'undefined' && (window as any).ethereum) {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
+        const provider = getActiveBrowserProvider();
+        if (provider) {
           const feeData = await provider.getFeeData();
           const gasPrice = feeData.gasPrice || ethers.parseUnits("3", "gwei");
           const gasLimit = 21000n; // Standard BNB transfer
@@ -374,14 +376,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
     try {
       setSwapping(true);
-      let provider: ethers.BrowserProvider | null = null;
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await getOrInitSigner();
+      if (!signer) {
+        throw new Error("No active Web3 wallet signer. Please connect via WalletConnect or your browser extension.");
       }
-      if (!provider) {
-        throw new Error("Web3 provider not detected. Open inside MetaMask or a Web3 browser.");
-      }
-      const signer = await provider.getSigner();
       const txHash = await executeUSDTtoBNBSwap(signer, usdtInput, estimatedBnb);
       setSwapSuccessHash(txHash);
       showSuccess({
@@ -447,13 +445,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     try {
       setIsSending(true);
-      let provider: ethers.BrowserProvider | null = null;
-      if (typeof window !== 'undefined' && (window as any).ethereum) {
-        provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await getOrInitSigner();
+      if (!signer) {
+        throw new Error("No active Web3 wallet signer. Please connect via WalletConnect or your browser extension.");
       }
-      if (!provider) throw new Error("No Web3 wallet provider available.");
-
-      const signer = await provider.getSigner();
 
       let hash = "";
       if (sendAsset === 'BNB') {

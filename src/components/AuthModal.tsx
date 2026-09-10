@@ -56,13 +56,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleAuthenticateWeb3 = async (walletType?: string) => {
+  const handleAuthenticateWeb3 = async (walletType: 'walletconnect' | 'metamask' = 'walletconnect') => {
     try {
       setLoading(true);
       setError(null);
 
-      // Connect to Web3 provider
-      const res = await connectWallet();
+      // Connect to Web3 provider (WalletConnect AppKit or Injected MetaMask)
+      const res = await connectWallet(walletType);
       if (!res || !res.address) {
         throw new Error("No authorized wallet address received.");
       }
@@ -117,23 +117,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         details: [
           { label: 'Miner Address', value: `${res.address.substring(0, 10)}...${res.address.substring(res.address.length - 4)}` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+          { label: 'Provider', value: walletType === 'walletconnect' ? 'WalletConnect AppKit (BSC)' : 'Injected Browser Extension' },
           { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
           { label: 'Daily Yield', value: referralBoostApplied ? '+5% Boosted' : 'Base Rate' },
         ],
       });
     } catch (err: any) {
       console.error("Web3 authentication error:", err);
+      // Cleanly handle user closing the AppKit modal without scary error toast
+      if (
+        err?.message?.includes('USER_CANCELLED') ||
+        err?.message?.includes('Connection request reset') ||
+        err?.message?.includes('User closed modal')
+      ) {
+        setLoading(false);
+        return;
+      }
+
       const isNotFound = err?.message?.includes("WEB3_WALLET_NOT_FOUND");
       const errMsg = isNotFound
-        ? "No Web3 wallet detected. Please install MetaMask, Trust Wallet, or open this app inside your mobile wallet dApp browser."
+        ? "No browser extension detected. Please use 'WalletConnect (AppKit)' to connect Trust Wallet, TokenPocket, or MetaMask via mobile deep link."
         : (err?.message || "Failed to authenticate on Binance Smart Chain.");
       setError(errMsg);
       showFailed({
         initiativeName: 'Web3 On-Chain Authentication',
         title: 'Authentication Unsuccessful',
         description: errMsg,
-        actionLabel: isNotFound ? 'Copy Link for Mobile dApp' : 'Retry Web3 Connect',
-        onAction: isNotFound ? handleCopyAppUrl : () => handleAuthenticateWeb3(walletType),
+        actionLabel: isNotFound ? 'Use WalletConnect' : 'Retry Connect',
+        onAction: isNotFound ? () => handleAuthenticateWeb3('walletconnect') : () => handleAuthenticateWeb3(walletType),
       });
     } finally {
       setLoading(false);
@@ -277,44 +288,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Primary Action Buttons */}
           <div className="flex flex-col gap-3">
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleAuthenticateWeb3('metamask')}
-              disabled={loading}
-              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-[#F3BA2F]/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-black" />
-                  <span>Connecting...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-black" />
-                  <span>MetaMask / Browser Wallet</span>
-                </>
-              )}
-            </motion.button>
-
+            {/* WalletConnect (AppKit) - Primary Cross-Platform Option */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleAuthenticateWeb3('walletconnect')}
               disabled={loading}
-              className="w-full py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-extrabold text-sm shadow-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold shadow-xl shadow-[#F3BA2F]/20 transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50 relative overflow-hidden group"
             >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Connecting...</span>
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-4 h-4" />
-                  <span>WalletConnect</span>
-                </>
-              )}
+              <div className="flex items-center gap-2 text-sm font-black">
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                    <span>Connecting via WalletConnect...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-4 h-4 text-black" />
+                    <span>WalletConnect (AppKit / Web3Modal)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 text-slate-950 font-bold uppercase tracking-wider">
+                      BSC (56)
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-900/80 font-medium">
+                Trust Wallet, TokenPocket, MetaMask & 20+ Mobile Wallets
+              </p>
+            </motion.button>
+
+            {/* Supported Wallets Row */}
+            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-[#848E9C]">
+              <span>Supported:</span>
+              <div className="flex items-center gap-2 font-medium text-white/70">
+                <span className="flex items-center gap-1">🛡️ Trust</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">🪙 TokenPocket</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">🦊 MetaMask</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">🟡 Binance</span>
+              </div>
+            </div>
+
+            {/* Desktop Browser Injected Option */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleAuthenticateWeb3('metamask')}
+              disabled={loading}
+              className="w-full py-3 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs shadow-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#F3BA2F]" />
+              <span>Browser Extension (Desktop MetaMask / Rabby / Injected)</span>
             </motion.button>
           </div>
 
