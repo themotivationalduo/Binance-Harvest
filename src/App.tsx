@@ -221,47 +221,7 @@ export default function App() {
   }, []);
 
   const handleConnectWallet = async () => {
-    try {
-      setIsConnecting(true);
-      setWalletError(null);
-      const res = await connectWallet();
-      if (res && res.address) {
-        setWalletAddress(res.address);
-        localStorage.setItem('binance_harvest_active_wallet', res.address);
-        syncWalletBalance(res.address);
-        const profile = await updateUserProfileFields(res.address, { walletAddress: res.address });
-        setUser(profile);
-
-        showSuccess({
-          initiativeName: 'Web3 Wallet Initialization',
-          title: 'Binance Smart Chain Connected!',
-          badge: 'Chain ID 56',
-          description: `Successfully linked BSC Web3 wallet ${res.address.substring(0, 6)}...${res.address.substring(res.address.length - 4)}.`,
-          details: [
-            { label: 'Wallet', value: `${res.address.substring(0, 10)}...` },
-            { label: 'Network', value: 'Binance Smart Chain' },
-            { label: 'Status', value: 'Ready for On-Chain Transactions' },
-          ],
-        });
-      }
-    } catch (err: any) {
-      console.error("Wallet connection failed:", err);
-      const isNotFound = err?.message?.includes("WEB3_WALLET_NOT_FOUND");
-      const errDetail = isNotFound
-        ? "MetaMask or a Web3 provider was not detected in this browser frame. To execute real on-chain BSC transactions, please install MetaMask or open this application in a new browser tab with your Web3 wallet active."
-        : (err?.message || "Failed to connect Web3 wallet. Please make sure you are on Binance Smart Chain Mainnet.");
-      setWalletError(errDetail);
-
-      showFailed({
-        initiativeName: 'Web3 Wallet Initialization',
-        title: 'Connection Failed',
-        description: errDetail,
-        actionLabel: 'Retry Connection',
-        onAction: () => handleConnectWallet(),
-      });
-    } finally {
-      setIsConnecting(false);
-    }
+    setShowAuthModal(true);
   };
 
   const handleDisconnectWallet = () => {

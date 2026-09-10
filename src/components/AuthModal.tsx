@@ -275,26 +275,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
           </div>
 
-          {/* Primary Action Button */}
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => handleAuthenticateWeb3()}
-            disabled={loading}
-            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-[#F3BA2F]/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-black" />
-                <span>Connecting & Verifying On-Chain...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-black" />
-                <span>One-Click Web3 Authentication</span>
-              </>
-            )}
-          </motion.button>
+          {/* Primary Action Buttons */}
+          <div className="flex flex-col gap-3">
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleAuthenticateWeb3('metamask')}
+              disabled={loading}
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-[#F3BA2F]/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-black" />
+                  <span>MetaMask / Browser Wallet</span>
+                </>
+              )}
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleAuthenticateWeb3('walletconnect')}
+              disabled={loading}
+              className="w-full py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-extrabold text-sm shadow-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <Wallet className="w-4 h-4" />
+                  <span>WalletConnect</span>
+                </>
+              )}
+            </motion.button>
+          </div>
 
           {/* Mobile / Fallback Helper */}
           <div className="pt-2 border-t border-white/10 space-y-3">

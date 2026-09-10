@@ -2,6 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Prevent polyfills (like cross-fetch from WalletConnect) from crashing the app
+      // when they try to overwrite window.fetch in the sandbox environment.
+      (function() {
+        try {
+          const desc = Object.getOwnPropertyDescriptor(window, 'fetch');
+          if (desc && desc.get && !desc.set) {
+            Object.defineProperty(window, 'fetch', {
+              get: desc.get,
+              set: function(val) {
+                console.warn('Ignored polyfill setting window.fetch');
+              },
+              configurable: true,
+              enumerable: desc.enumerable
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/bhft-logo.svg" />
     <link rel="preconnect" href="https://bsc-dataseed.binance.org" crossorigin />

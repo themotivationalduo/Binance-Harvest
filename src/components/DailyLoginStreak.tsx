@@ -18,7 +18,7 @@ import {
 
 interface DailyLoginStreakProps {
   user: UserProfile;
-  onUpdateUser: (updatedFields: Partial<UserProfile>) => Promise<void>;
+  onUpdateUser: (updatedFields: Partial<UserProfile>) => void | Promise<void>;
 }
 
 // Escalating 7-day milestone ladder starting from 100 points

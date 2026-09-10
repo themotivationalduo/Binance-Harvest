@@ -1530,10 +1530,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         <div className="text-[10px] text-slate-500">{new Date(tx.timestamp).toLocaleString()}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs font-bold text-amber-400 font-mono">+{tx.amount} {tx.type === 'UPGRADE' ? 'BNB' : 'BHFT'}</div>
-                        {tx.hash && (
+                        <div className="text-xs font-bold text-amber-400 font-mono">+{tx.amountBNB} {tx.type === 'UPGRADE' ? 'BNB' : 'BHFT'}</div>
+                        {tx.txHash && (
                           <a
-                            href={`https://bscscan.com/tx/${tx.hash}`}
+                            href={`https://bscscan.com/tx/${tx.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-0.5 text-[10px] text-violet-300 hover:underline"
@@ -1588,8 +1588,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <span className="text-slate-400">Account Settlement Status</span>
                   <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] ${
                     user.isVerified || user.withdrawalStatus === 'APPROVED' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                    user.withdrawalStatus === 'SETTLED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                    user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' || user.withdrawalStatus === 'PENDING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                    user.withdrawalStatus === 'PENDING_ADMIN_APPROVAL' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                     'bg-slate-800 text-slate-400'
                   }`}>
                     {user.isVerified || user.withdrawalStatus === 'APPROVED' ? 'VERIFIED • COMING SOON' :

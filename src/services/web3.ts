@@ -209,38 +209,76 @@ export async function signWeb3AuthMessage(signer: ethers.Signer, address: string
   return await signer.signMessage(challenge);
 }
 
-export async function connectWallet(): Promise<{
+import { EthereumProvider } from '@walletconnect/ethereum-provider';
+
+export async function connectWallet(walletType: 'metamask' | 'walletconnect' = 'metamask'): Promise<{
   address: string;
   provider: ethers.BrowserProvider;
   signer: ethers.Signer;
 }> {
-  const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
-
-  if (!ethereum) {
-    throw new Error(
-      "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension detected in this browser window. Please install MetaMask or open this app in your Web3 browser."
-    );
-  }
-
   try {
-    const provider = new ethers.BrowserProvider(ethereum);
-    // Request accounts from the real wallet
-    const accounts = await provider.send("eth_requestAccounts", []);
-    if (!accounts || accounts.length === 0) {
-      throw new Error("No authorized accounts returned by wallet.");
+    let rawProvider: any;
+
+    if (walletType === 'walletconnect') {
+      const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'b56e467140e79391ab1a9db9a953e5e4'; // Default demo ID
+      
+      const wcProvider = await EthereumProvider.init({
+        projectId,
+        chains: [56],
+        showQrModal: true,
+        metadata: {
+          name: 'BinanceHarvest',
+          description: 'Decentralized Cloud Mining Protocol on BSC',
+          url: window.location.origin,
+          icons: [`${window.location.origin}/logo.png`]
+        }
+      });
+
+      await wcProvider.connect();
+      rawProvider = wcProvider;
+    } else {
+      const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+      if (!ethereum) {
+        throw new Error(
+          "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension detected in this browser window. Please install MetaMask or open this app in your Web3 browser."
+        );
+      }
+      rawProvider = ethereum;
+      // Request accounts from the real wallet extension
+      await rawProvider.request({ method: "eth_requestAccounts" });
     }
 
+    const provider = new ethers.BrowserProvider(rawProvider);
+    
     // Verify BSC network and switch if needed
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== 56) {
-      const switched = await switchToBSC();
-      if (!switched) {
-        throw new Error("Please switch your wallet network to Binance Smart Chain Mainnet (Chain ID 56).");
+      if (walletType === 'walletconnect') {
+        await rawProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: BSC_CHAIN_ID }],
+        });
+      } else {
+        const switched = await switchToBSC();
+        if (!switched) {
+          throw new Error("Please switch your wallet network to Binance Smart Chain Mainnet (Chain ID 56).");
+        }
       }
     }
 
     const signer = await provider.getSigner();
     const address = await signer.getAddress();
+    
+    // Listen for disconnect events on WC provider
+    if (walletType === 'walletconnect') {
+      rawProvider.on('disconnect', () => {
+        console.log('WalletConnect disconnected');
+        localStorage.removeItem('binance_harvest_active_wallet');
+        localStorage.removeItem('walletconnect');
+        window.location.reload();
+      });
+    }
+    
     return { address, provider, signer };
   } catch (error: any) {
     console.error("Real wallet connection error:", error);
