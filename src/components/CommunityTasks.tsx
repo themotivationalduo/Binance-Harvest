@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { CheckCircle2, Loader2, Twitter, Send, Users, ArrowUpRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
+import { triggerMiningRewardConfetti } from '../utils/confetti';
 
 interface CommunityTasksProps {
   user: UserProfile;
@@ -75,6 +76,7 @@ export const CommunityTasks: React.FC<CommunityTasksProps> = ({ user, onUpdateUs
       });
 
       setIsClaiming(null);
+      triggerMiningRewardConfetti();
       showSuccess({
         initiativeName: 'Community Airdrop',
         title: 'Task Completed!',

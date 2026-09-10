@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { updateUserProfileFields } from '../services/firebase';
+import { triggerStreakRewardConfetti } from '../utils/confetti';
 import { 
   Flame, 
   Sparkles, 
@@ -144,6 +145,9 @@ export const DailyLoginStreak: React.FC<DailyLoginStreakProps> = ({ user, onUpda
 
       await updateUserProfileFields(userIdentifier, updatedFields);
       await onUpdateUser(updatedFields);
+
+      // Trigger glorious streak celebration confetti
+      triggerStreakRewardConfetti();
 
       // Trigger glorious success feedback animation
       showSuccess({

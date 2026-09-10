@@ -11,6 +11,7 @@ import { TransactionStatusIndicator } from './TransactionStatusIndicator';
 import { ReferralCard } from './ReferralCard';
 import { sendPushNotification } from '../services/notifications';
 import { parseWeb3Error } from '../utils/errorParser';
+import { triggerMiningRewardConfetti } from '../utils/confetti';
 
 import { CommunityTasks } from './CommunityTasks';
 
@@ -104,7 +105,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Claim points/BHFT action: Adds session yield to balance and automatically starts a new 24h session
   const handleClaimPoints = () => {
-    if (!isMinerEnded || isMining) return;
+    if (isMining) return;
+    if (!isMinerEnded && accumulatedBHFT < 0.0001) return;
 
     setIsMining(true);
     setTimeout(() => {
@@ -126,6 +128,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       setSuccessMessage(`Successfully harvested +${earned.toFixed(4)} BHFT! Your balance was credited and a new 24h mining cycle has started.`);
       setTimeout(() => setSuccessMessage(null), 5000);
 
+      // Trigger BSC Celebratory Confetti Animation
+      triggerMiningRewardConfetti();
+
       // Trigger glorious Success Animation
       showSuccess({
         initiativeName: 'Cloud Hash Harvest',
@@ -134,6 +139,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         description: `Successfully collected ${earned.toFixed(4)} mined BHFT to your mining balance. Your next 24-hour ASIC mining session has automatically begun!`,
         details: [
           { label: 'Active Rig', value: `Tier ${user.currentTier} (${dailyBHFT.toFixed(2)} BHFT/day)` },
+          { label: 'Harvested Amount', value: `+${earned.toFixed(4)} BHFT` },
           { label: 'Updated Balance', value: `${newBalance.toFixed(2)} BHFT` },
           { label: 'Estimated Value', value: `≈ ${(newBalance * 0.50).toFixed(2)} USDT` },
           { label: 'New Mining Session', value: 'Active (24h Countdown Reset)' },
@@ -542,25 +548,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           <div className="flex items-center gap-3">
             <motion.button
-              whileHover={isMinerEnded && !isMining ? { scale: 1.03 } : {}}
-              whileTap={isMinerEnded && !isMining ? { scale: 0.96 } : {}}
+              whileHover={(isMinerEnded || accumulatedBHFT >= 0.0001) && !isMining ? { scale: 1.03 } : {}}
+              whileTap={(isMinerEnded || accumulatedBHFT >= 0.0001) && !isMining ? { scale: 0.96 } : {}}
               onClick={handleClaimPoints}
-              disabled={isMining || !isMinerEnded}
+              disabled={isMining || (!isMinerEnded && accumulatedBHFT < 0.0001)}
               className={`text-black text-xs font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer ${
                 isMinerEnded && !isMining
                   ? 'bg-gradient-to-r from-amber-400 via-[#F3BA2F] to-amber-300 shadow-lg shadow-[#F3BA2F]/30 text-black font-extrabold'
+                  : accumulatedBHFT >= 0.0001 && !isMining
+                  ? 'bg-gradient-to-r from-amber-400 via-[#F3BA2F] to-amber-300 hover:brightness-110 shadow-lg shadow-[#F3BA2F]/20 text-black font-extrabold'
                   : 'bg-[#2B3139] text-[#848E9C] cursor-not-allowed border border-[rgba(255,255,255,0.08)]'
               }`}
             >
               {isMining ? (
-                <Loader2 className="w-4 h-4 animate-spin text-[#848E9C]" />
-              ) : isMinerEnded ? (
+                <Loader2 className="w-4 h-4 animate-spin text-black" />
+              ) : (isMinerEnded || accumulatedBHFT >= 0.0001) ? (
                 <Sparkles className="w-4 h-4 text-black" />
               ) : (
                 <Clock className="w-4 h-4 text-[#848E9C]" />
               )}
-              <span className={isMinerEnded ? 'text-black font-extrabold' : 'text-[#848E9C]'}>
-                {isMinerEnded ? 'Claim & Start New Session' : `Active: ${formatRemainingCountdown(remainingMs)}`}
+              <span className={(isMinerEnded || accumulatedBHFT >= 0.0001) ? 'text-black font-extrabold' : 'text-[#848E9C]'}>
+                {isMining
+                  ? 'Harvesting Yield...'
+                  : isMinerEnded
+                  ? 'Claim & Start New Session'
+                  : accumulatedBHFT >= 0.0001
+                  ? `Harvest Rewards (+${accumulatedBHFT.toFixed(4)})`
+                  : `Active: ${formatRemainingCountdown(remainingMs)}`}
               </span>
             </motion.button>
 
