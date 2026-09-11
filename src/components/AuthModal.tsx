@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Wallet, Globe, CheckCircle2, AlertCircle, X, ExternalLink, Copy, Check, Sparkles, RefreshCw, Lock, Gift, Zap } from 'lucide-react';
+import { Wallet, Globe, AlertCircle, X, Copy, Check, RefreshCw, Gift } from 'lucide-react';
 import { UserProfile } from '../types';
-import { connectWallet, switchToBSC, detectWeb3Providers, signWeb3AuthMessage } from '../services/web3';
+import { connectWallet } from '../services/web3';
 import { getUserProfile, saveUserProfile, applyReferralCode } from '../services/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
@@ -25,7 +25,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [requireSignature, setRequireSignature] = useState(false);
   const [referralInput, setReferralInput] = useState<string>('');
 
   const { showSuccess, showFailed } = useInitiativeFeedback();
@@ -61,24 +60,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLoading(true);
       setError(null);
 
-      // Connect to Web3 provider (WalletConnect AppKit or Injected MetaMask)
+      // Connect to Web3 provider
       const res = await connectWallet(walletType);
       if (!res || !res.address) {
         throw new Error("No authorized wallet address received.");
       }
 
       const normalizedAddress = res.address.toLowerCase();
-
-      // If user selected cryptographic signature verification
-      if (requireSignature && res.signer) {
-        try {
-          await signWeb3AuthMessage(res.signer, res.address);
-        } catch (signErr: any) {
-          if (signErr?.code === 4001 || signErr?.message?.includes("User rejected")) {
-            throw new Error("Signature verification was rejected in your Web3 wallet.");
-          }
-        }
-      }
 
       // Sync with Firestore profile keyed strictly by on-chain address
       let profile = await getUserProfile(normalizedAddress);
@@ -117,7 +105,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         details: [
           { label: 'Miner Address', value: `${res.address.substring(0, 10)}...${res.address.substring(res.address.length - 4)}` },
           { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Provider', value: walletType === 'walletconnect' ? 'WalletConnect AppKit (BSC)' : 'Injected Browser Extension' },
+          { label: 'Provider', value: walletType === 'walletconnect' ? 'WalletConnect' : 'Browser Extension' },
           { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
           { label: 'Daily Yield', value: referralBoostApplied ? '+5% Boosted' : 'Base Rate' },
         ],
@@ -136,7 +124,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       const isNotFound = err?.message?.includes("WEB3_WALLET_NOT_FOUND");
       const errMsg = isNotFound
-        ? "No browser extension detected. Please use 'WalletConnect (AppKit)' to connect Trust Wallet, TokenPocket, or MetaMask via mobile deep link."
+        ? "No browser extension detected. Please use 'WalletConnect' to connect your mobile wallet."
         : (err?.message || "Failed to authenticate on Binance Smart Chain.");
       setError(errMsg);
       showFailed({
@@ -153,27 +141,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex min-h-screen items-center justify-center animate-fade-in overscroll-contain">
-      <div className="relative w-full max-w-lg my-auto max-h-[92vh] flex flex-col bg-[#0B0E11]/95 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_16px_50px_0_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden">
+      <div className="relative w-full max-w-md my-auto flex flex-col bg-[#0B0E11]/95 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_16px_50px_0_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden">
         
         {/* Mirror Glass Glow Highlights */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#F3BA2F]/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#00C087]/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+        <div className="absolute top-0 right-0 w-56 h-56 bg-[#F3BA2F]/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16"></div>
+        <div className="absolute bottom-0 left-0 w-56 h-56 bg-[#00C087]/10 rounded-full blur-3xl pointer-events-none -ml-16 -mb-16"></div>
 
         {/* Modal Header */}
-        <div className="p-4 sm:p-6 pb-4 border-b border-white/10 flex items-center justify-between relative z-10 shrink-0">
+        <div className="p-4 sm:p-5 pb-3 border-b border-white/10 flex items-center justify-between relative z-10 shrink-0">
           <div className="flex items-center gap-3">
-            <AppLogo className="w-11 h-11" rounded="rounded-2xl" alt="BinanceHarvest Official Logo" />
+            <AppLogo className="w-10 h-10" rounded="rounded-2xl" alt="BinanceHarvest Official Logo" />
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate">
-                  Web3 Authentication
-                </h2>
-                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#00C087]/20 text-[#00C087] border border-[#00C087]/30 shrink-0">
-                  On-Chain Only
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-xs text-[#848E9C] truncate">
-                Binance Smart Chain (BEP-20) Decentralized ID
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+                Connect Wallet
+              </h2>
+              <p className="text-[11px] text-[#848E9C] truncate">
+                Binance Smart Chain (BEP-20)
               </p>
             </div>
           </div>
@@ -190,7 +173,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 space-y-5 relative z-10 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+        <div className="p-4 sm:p-5 space-y-4 relative z-10 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
           
           {/* Error Message */}
           <AnimatePresence>
@@ -199,12 +182,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                className="p-4 bg-red-500/15 border border-red-500/40 text-red-300 text-xs rounded-2xl flex items-start gap-3 shadow-lg shadow-red-500/10 backdrop-blur-md"
+                className="p-3.5 bg-red-500/15 border border-red-500/40 text-red-300 text-xs rounded-2xl flex items-start gap-2.5 shadow-lg shadow-red-500/10 backdrop-blur-md"
               >
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <span className="font-semibold block">Authentication Notice:</span>
-                  <span className="leading-relaxed">{error}</span>
+                <div className="space-y-0.5 min-w-0">
+                  <span className="font-semibold block">Notice</span>
+                  <span className="leading-relaxed break-words">{error}</span>
                 </div>
               </motion.div>
             )}
@@ -212,154 +195,98 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Referral Code Detected Banner */}
           {referralInput && (
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-amber-500/10 border border-[#00C087]/40 flex items-center gap-3 backdrop-blur-md shadow-lg shadow-[#00C087]/5">
-              <div className="w-8 h-8 rounded-xl bg-[#00C087]/20 border border-[#00C087]/40 text-[#00C087] flex items-center justify-center shrink-0">
-                <Gift className="w-4 h-4" />
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-amber-500/10 border border-[#00C087]/40 flex items-center gap-2.5 backdrop-blur-md">
+              <div className="w-7 h-7 rounded-xl bg-[#00C087]/20 border border-[#00C087]/40 text-[#00C087] flex items-center justify-center shrink-0">
+                <Gift className="w-3.5 h-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <p className="text-xs font-bold text-white">Referral Bonus Linked</p>
-                  <span className="text-[10px] font-mono text-[#00C087] font-bold bg-[#00C087]/15 px-1.5 py-0.5 rounded">
-                    +5% DAILY MINING
+                  <span className="text-[9px] font-mono text-[#00C087] font-bold bg-[#00C087]/15 px-1.5 py-0.5 rounded">
+                    +5% BOOST
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 truncate font-mono">
-                  Referrer: {referralInput.substring(0, 10)}...{referralInput.substring(referralInput.length - 4)}
+                <p className="text-[10px] text-slate-300 truncate font-mono">
+                  {referralInput.substring(0, 10)}...{referralInput.substring(referralInput.length - 4)}
                 </p>
               </div>
             </div>
           )}
 
           {/* Network Banner */}
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#00C087] animate-pulse shadow-[0_0_10px_#00C087]" />
-              <div>
-                <p className="text-xs font-bold text-white">Target Network: BSC Mainnet</p>
-                <p className="text-[11px] text-[#848E9C]">Chain ID 56 • Native Currency BNB</p>
-              </div>
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-[#00C087] animate-pulse shadow-[0_0_8px_#00C087]" />
+              <p className="text-xs font-medium text-white">BSC Mainnet (Chain ID 56)</p>
             </div>
-            <span className="text-[11px] font-mono font-semibold text-[#F3BA2F] px-2.5 py-1 bg-[#F3BA2F]/10 border border-[#F3BA2F]/20 rounded-lg">
-              BEP-20
+            <span className="text-[10px] font-mono font-bold text-[#F3BA2F] px-2 py-0.5 bg-[#F3BA2F]/10 border border-[#F3BA2F]/20 rounded-lg">
+              BNB
             </span>
           </div>
 
           {/* Optional Referral Code Input */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Gift className="w-3.5 h-3.5 text-amber-400" />
+              <label className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                <Gift className="w-3 h-3 text-amber-400" />
                 <span>Referral Code (Optional)</span>
               </label>
-              <span className="text-[10px] text-amber-400 font-mono">+5% Daily Mining Boost</span>
+              <span className="text-[10px] text-amber-400 font-mono">+5% Mining Boost</span>
             </div>
             <input
               type="text"
               value={referralInput}
               onChange={(e) => setReferralInput(e.target.value)}
-              placeholder="Paste friend's BSC address (0x...) or link"
-              className="w-full px-4 py-2.5 bg-black/40 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F3BA2F] focus:ring-1 focus:ring-[#F3BA2F] transition backdrop-blur-md"
+              placeholder="Paste friend's BSC address (0x...)"
+              className="w-full px-3.5 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F3BA2F] focus:ring-1 focus:ring-[#F3BA2F] transition backdrop-blur-md"
             />
           </div>
 
-          {/* Cryptographic signature option */}
-          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-white">Cryptographic Challenge Signature</p>
-                <p className="text-[11px] text-[#848E9C]">Request an on-chain personal sign challenge</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setRequireSignature(!requireSignature)}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                requireSignature ? 'bg-[#F3BA2F]' : 'bg-white/10'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-black transition-transform absolute top-1 ${
-                  requireSignature ? 'left-6' : 'left-1'
-                }`}
-              />
-            </button>
-          </div>
-
           {/* Primary Action Buttons */}
-          <div className="flex flex-col gap-3">
-            {/* WalletConnect (AppKit) - Primary Cross-Platform Option */}
+          <div className="flex flex-col gap-2.5 pt-1">
+            {/* WalletConnect Button */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleAuthenticateWeb3('walletconnect')}
               disabled={loading}
-              className="w-full p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold shadow-xl shadow-[#F3BA2F]/20 transition flex flex-col items-center justify-center gap-1 cursor-pointer disabled:opacity-50 relative overflow-hidden group"
+              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-[#F3BA2F] to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm shadow-lg shadow-[#F3BA2F]/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <div className="flex items-center gap-2 text-sm font-black">
-                {loading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-black" />
-                    <span>Connecting via WalletConnect...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wallet className="w-4 h-4 text-black" />
-                    <span>WalletConnect (AppKit / Web3Modal)</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/20 text-slate-950 font-bold uppercase tracking-wider">
-                      BSC (56)
-                    </span>
-                  </>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-900/80 font-medium">
-                Trust Wallet, TokenPocket, MetaMask & 20+ Mobile Wallets
-              </p>
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <Wallet className="w-4 h-4 text-slate-950" />
+                  <span>WalletConnect</span>
+                </>
+              )}
             </motion.button>
 
-            {/* Supported Wallets Row */}
-            <div className="flex items-center justify-between px-2 py-1 text-[11px] text-[#848E9C]">
-              <span>Supported:</span>
-              <div className="flex items-center gap-2 font-medium text-white/70">
-                <span className="flex items-center gap-1">🛡️ Trust</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">🪙 TokenPocket</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">🦊 MetaMask</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">🟡 Binance</span>
-              </div>
-            </div>
-
-            {/* Desktop Browser Injected Option */}
+            {/* Browser Extension Wallet connect */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleAuthenticateWeb3('metamask')}
               disabled={loading}
-              className="w-full py-3 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs shadow-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-xs shadow transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <Globe className="w-3.5 h-3.5 text-[#F3BA2F]" />
-              <span>Browser Extension (Desktop MetaMask / Rabby / Injected)</span>
+              <Globe className="w-4 h-4 text-[#F3BA2F]" />
+              <span>Browser Extension Wallet connect</span>
             </motion.button>
           </div>
 
-          {/* Mobile / Fallback Helper */}
-          <div className="pt-2 border-t border-white/10 space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-[#848E9C]">
-              <span>Opening on mobile?</span>
-              <button
-                onClick={handleCopyAppUrl}
-                className="flex items-center gap-1.5 text-amber-400 hover:underline cursor-pointer font-medium self-start sm:self-auto"
-              >
-                {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#00C087]" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedUrl ? 'Copied to Clipboard!' : 'Copy App URL for dApp Browser'}</span>
-              </button>
-            </div>
-
-            <p className="text-[11px] text-[#848E9C] leading-relaxed text-center">
-              Decentralized Non-Custodial Architecture: No passwords or emails needed. Your on-chain address is verified directly via Binance Smart Chain RPC.
-            </p>
+          {/* Mobile / Helper */}
+          <div className="pt-2 border-t border-white/10 flex items-center justify-center">
+            <button
+              onClick={handleCopyAppUrl}
+              className="flex items-center gap-1.5 text-[11px] text-amber-400 hover:underline cursor-pointer font-medium"
+            >
+              {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#00C087]" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedUrl ? 'Copied to Clipboard!' : 'Copy App URL for dApp Browser'}</span>
+            </button>
           </div>
 
         </div>
@@ -367,3 +294,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </div>
   );
 };
+
