@@ -143,16 +143,35 @@ export default function App() {
     return () => unsubscribe();
   }, [walletAddress, showSuccess]);
 
-  // Fetch BNB price on mount and every 60 seconds
-  useEffect(() => {
-    const updatePrice = async () => {
+  // Auto-refresh feature polling for updated mining balance calculations, user profile, and prices every 30 seconds
+  const pollMiningCalculations = async () => {
+    try {
       const price = await fetchLiveBNBPrice();
       setBnbPrice(price);
-    };
-    updatePrice();
-    const interval = setInterval(updatePrice, 60000);
+
+      const activeWallet = walletAddress || localStorage.getItem('binance_harvest_active_wallet');
+      if (activeWallet) {
+        const [updatedProfile, bal] = await Promise.all([
+          getUserProfile(activeWallet),
+          getRealWalletBalance(activeWallet).catch(() => null)
+        ]);
+        if (updatedProfile) {
+          setUser(updatedProfile);
+        }
+        if (bal !== null && bal !== undefined) {
+          setWalletBalance(bal);
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-refresh poll error:", e);
+    }
+  };
+
+  useEffect(() => {
+    pollMiningCalculations();
+    const interval = setInterval(pollMiningCalculations, 30000); // 30-second polling interval
     return () => clearInterval(interval);
-  }, []);
+  }, [walletAddress]);
 
   // Sync real wallet balance when wallet address changes
   const syncWalletBalance = async (addr: string) => {
@@ -353,6 +372,7 @@ export default function App() {
               bnbPrice={bnbPrice}
               onUpdateUser={handleUpdateUser}
               onNavigateToTiers={() => handleTabChange('tiers')}
+              onPollMiningCalculations={pollMiningCalculations}
             />
           )}
           {activeTab === 'tiers' && (

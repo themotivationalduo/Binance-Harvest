@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, ALL_TIERS } from '../types';
-import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink, Users, Gift, Percent, Share2 } from 'lucide-react';
+import { Zap, ShieldCheck, Clock, ArrowUpRight, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp, Info, X, Flame, ExternalLink, Users, Gift, Percent, Share2, RefreshCw } from 'lucide-react';
 import { sendBNBTransaction, sendBHFTTransaction, TREASURY_WALLET, BHFT_TOKEN_ADDRESS, switchToBSC, getOrInitSigner } from '../services/web3';
 import { addTransactionRecord } from '../services/firebase';
 import { ethers } from 'ethers';
@@ -20,6 +20,7 @@ interface DashboardProps {
   bnbPrice: number;
   onUpdateUser: (updated: Partial<UserProfile>) => void;
   onNavigateToTiers: () => void;
+  onPollMiningCalculations?: () => Promise<void>;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -27,6 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   bnbPrice,
   onUpdateUser,
   onNavigateToTiers,
+  onPollMiningCalculations,
 }) => {
   const [isMining, setIsMining] = useState(false);
   const [isProcessingTx, setIsProcessingTx] = useState(false);
@@ -58,6 +60,58 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isThresholdMet = usdValue >= withdrawalThresholdUSD;
   const verificationFeeBNB = (verificationFeeUSD / bnbPrice).toFixed(5);
   const withdrawalThresholdBNB = (withdrawalThresholdUSD / bnbPrice).toFixed(5);
+
+  // Daily Mining Capacity Utilization based on current tier and total points
+  const baseTierDailyPoints = currentTierInfo.pointsPerDay || Math.round(baseDailyBHFT * 500) || 714;
+  const dailyCapacityPoints = Math.max(1, Math.round(baseTierDailyPoints * referralMultiplier));
+  const userTotalPoints = Math.max(0, user.totalPoints || 0);
+
+  // Utilization calculation (0% to 100%)
+  const rawUtilization = (userTotalPoints / dailyCapacityPoints) * 100;
+  const capacityUtilizationPercent = Math.min(100, Math.max(0, rawUtilization));
+  const isDailyCapReached = userTotalPoints >= dailyCapacityPoints;
+
+  // 30-Second Auto-Refresh polling state for mining calculations
+  const [refreshCountdown, setRefreshCountdown] = useState<number>(30);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState<boolean>(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+
+  // 30-Second Auto-Refresh Interval: polls updated mining calculations without manual page refresh
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshCountdown((prev) => {
+        if (prev <= 1) {
+          setIsAutoRefreshing(true);
+          Promise.resolve(onPollMiningCalculations?.()).finally(() => {
+            setTimeout(() => {
+              setIsAutoRefreshing(false);
+              setLastRefreshedAt(new Date());
+            }, 600);
+          });
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [onPollMiningCalculations]);
+
+  const handleManualAutoRefreshTrigger = async () => {
+    if (isAutoRefreshing) return;
+    setIsAutoRefreshing(true);
+    try {
+      if (onPollMiningCalculations) {
+        await onPollMiningCalculations();
+      }
+      setLastRefreshedAt(new Date());
+      setRefreshCountdown(30);
+    } catch (e) {
+      console.warn("Manual refresh failed:", e);
+    } finally {
+      setTimeout(() => setIsAutoRefreshing(false), 500);
+    }
+  };
 
   // Track miner live progress
   React.useEffect(() => {
@@ -310,6 +364,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <p className="text-[#848E9C]">5. USDT Equivalent Baseline:</p>
                 <p className="text-white">1 BHFT = 0.50 USDT (Pegged)</p>
               </div>
+
+              <div className="p-3 bg-[#0B0E11] rounded-lg border border-white/5 space-y-1">
+                <p className="text-[#848E9C]">6. Daily Capacity Utilization:</p>
+                <p className="text-white">({userTotalPoints.toLocaleString()} PTS / {dailyCapacityPoints.toLocaleString()} PTS) = <strong className="text-[#00C087]">{capacityUtilizationPercent.toFixed(1)}%</strong></p>
+                <p className="text-[11px] text-[#848E9C]">Auto-refreshed every 30 seconds for live recalculation.</p>
+              </div>
             </div>
 
             <button
@@ -331,14 +391,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="bg-[#1E2329] p-4 rounded-lg border border-[rgba(255,255,255,0.08)]">
-            <p className="text-[11px] uppercase tracking-wider text-[#848E9C] mb-1">Your Account Tier</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] uppercase tracking-wider text-[#848E9C]">Your Account Tier</p>
+              <span className="text-[10px] font-mono text-[#00C087] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00C087] animate-pulse"></span>
+                {capacityUtilizationPercent.toFixed(1)}% Cap
+              </span>
+            </div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-lg font-bold text-white">Tier {user.currentTier}</span>
               <span className="bg-[#F3BA2F]/10 border border-[#F3BA2F] text-[#F3BA2F] px-2 py-0.5 rounded-full text-[10px] font-bold">
                 {user.currentTier === 1 ? 'NOVICE' : `PRO RIG T${user.currentTier}`}
               </span>
             </div>
-            <p className="text-xs text-[#848E9C] mb-4">Mining Power: {dailyBHFT.toFixed(2)} BHFT / Day</p>
+            <p className="text-xs text-[#848E9C] mb-2">Mining Power: {dailyBHFT.toFixed(2)} BHFT / Day</p>
+            
+            {/* Daily Capacity Utilization Mini Indicator */}
+            <div className="flex items-center justify-between mb-3 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/5 text-[11px]">
+              <span className="text-[#848E9C] flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-[#F3BA2F]" /> Daily Capacity:
+              </span>
+              <span className="font-mono font-bold text-[#00C087]">
+                {capacityUtilizationPercent.toFixed(1)}%
+              </span>
+            </div>
             
             {/* Tier Progress Bar */}
             <div className="mb-4">
@@ -492,18 +568,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Top Header Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-[#848E9C] text-xs font-medium uppercase tracking-wider">Total Mining Balance</h2>
-              <button onClick={() => setShowRateModal(true)} className="text-[#F3BA2F] hover:underline text-[10px] flex items-center gap-1 cursor-pointer">
-                <Info className="w-3 h-3" /> Rate Formula
-              </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-[#848E9C] text-xs font-medium uppercase tracking-wider">Total Mining Balance</h2>
+                <button onClick={() => setShowRateModal(true)} className="text-[#F3BA2F] hover:underline text-[10px] flex items-center gap-1 cursor-pointer">
+                  <Info className="w-3 h-3" /> Rate Formula
+                </button>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl lg:text-5xl font-bold mono tracking-tighter text-white">
+                  {bhftBalance.toFixed(2)}
+                </span>
+                <span className="text-xl font-semibold text-[#F3BA2F]">BHFT</span>
+              </div>
             </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl lg:text-5xl font-bold mono tracking-tighter text-white">
-                {bhftBalance.toFixed(2)}
+
+            {/* Auto-Refresh 30s Polling Indicator */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs backdrop-blur-md self-start md:self-center mt-2 md:mt-0">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isAutoRefreshing ? 'bg-[#00C087]' : 'bg-[#F3BA2F]'} opacity-75`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isAutoRefreshing ? 'bg-[#00C087]' : 'bg-[#F3BA2F]'}`}></span>
               </span>
-              <span className="text-xl font-semibold text-[#F3BA2F]">BHFT</span>
+              <span className="text-[#848E9C] text-[11px] hidden sm:inline">Auto-Refresh:</span>
+              <span className="font-mono font-bold text-white text-[11px]">
+                {isAutoRefreshing ? 'Syncing...' : `${refreshCountdown}s`}
+              </span>
+              <button
+                onClick={handleManualAutoRefreshTrigger}
+                title="Click to recalculate and refresh mining balance now"
+                disabled={isAutoRefreshing}
+                className="text-[#848E9C] hover:text-[#F3BA2F] transition cursor-pointer p-0.5"
+              >
+                <RefreshCw className={`w-3 h-3 ${isAutoRefreshing ? 'animate-spin text-[#00C087]' : ''}`} />
+              </button>
             </div>
           </div>
 
@@ -591,6 +689,132 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <p className="text-[10px] text-[#848E9C]">
                   {isMinerEnded ? 'Claim yield to restart' : `Tier ${user.currentTier} (${dailyBHFT.toFixed(2)}/day)`}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Mining Capacity Utilization Section with Circular Progress Bar */}
+        <div className="rounded-2xl bg-gradient-to-br from-[#1E2329]/95 via-[#232A32]/90 to-[#181C22]/95 backdrop-blur-2xl border border-white/10 p-5 sm:p-6 shadow-xl relative overflow-hidden">
+          {/* Ambient Glow */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#00C087]/15 via-[#F3BA2F]/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
+
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+            {/* Left Content & Stats */}
+            <div className="flex-1 min-w-0 space-y-3 w-full">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-gradient-to-tr from-amber-500/20 to-[#00C087]/20 border border-[#F3BA2F]/30 text-[#F3BA2F]">
+                  <Zap className="w-5 h-5 text-[#F3BA2F]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                      Daily Mining Capacity Utilization
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#00C087]/15 text-[#00C087] border border-[#00C087]/30">
+                      Tier {user.currentTier}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#848E9C]">
+                    Calculated from your accumulated points ({userTotalPoints.toLocaleString()} PTS) relative to Tier {user.currentTier} daily quota ({dailyCapacityPoints.toLocaleString()} PTS/d).
+                  </p>
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <span className="text-[10px] uppercase text-[#848E9C] tracking-wider block">Total Points</span>
+                  <span className="text-lg font-bold mono text-white">
+                    {userTotalPoints.toLocaleString()} <span className="text-[11px] text-[#848E9C] font-normal">PTS</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    ≈ {(userTotalPoints / 500).toFixed(2)} BHFT value
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <span className="text-[10px] uppercase text-[#848E9C] tracking-wider block">Daily Tier Capacity</span>
+                  <span className="text-lg font-bold mono text-[#F3BA2F]">
+                    {dailyCapacityPoints.toLocaleString()} <span className="text-[11px] text-[#848E9C] font-normal">PTS/d</span>
+                  </span>
+                  <span className="text-[10px] text-[#848E9C] block mt-0.5">
+                    {dailyBHFT.toFixed(2)} BHFT/day rate
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] uppercase text-[#848E9C] tracking-wider block">Capacity Status</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`w-2 h-2 rounded-full ${isDailyCapReached ? 'bg-[#00C087] animate-pulse' : 'bg-[#F3BA2F]'}`}></span>
+                    <span className={`text-xs font-bold ${isDailyCapReached ? 'text-[#00C087]' : capacityUtilizationPercent >= 75 ? 'text-[#00C087]' : 'text-amber-300'}`}>
+                      {isDailyCapReached ? '100% Full Quota' : capacityUtilizationPercent >= 75 ? 'Peak Load' : capacityUtilizationPercent >= 25 ? 'Active Output' : 'Initial Load'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    Auto-refreshed (30s)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Visual Circular Progress Bar */}
+            <div className="flex flex-col items-center justify-center shrink-0 w-full md:w-auto pt-2 md:pt-0">
+              <div className="relative w-32 h-32 sm:w-36 sm:h-36 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                  <defs>
+                    <linearGradient id="capacityCircleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#F3BA2F" />
+                      <stop offset="50%" stopColor="#F59E0B" />
+                      <stop offset="100%" stopColor="#00C087" />
+                    </linearGradient>
+                    <filter id="capacityCircleGlow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#00C087" floodOpacity="0.4" />
+                    </filter>
+                  </defs>
+                  {/* Background Track */}
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="48"
+                    stroke="rgba(255, 255, 255, 0.08)"
+                    strokeWidth="9"
+                    fill="transparent"
+                  />
+                  {/* Dynamic Circular Progress */}
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="48"
+                    stroke="url(#capacityCircleGrad)"
+                    strokeWidth="9"
+                    strokeDasharray={2 * Math.PI * 48}
+                    strokeDashoffset={(2 * Math.PI * 48) - ((capacityUtilizationPercent / 100) * (2 * Math.PI * 48))}
+                    strokeLinecap="round"
+                    fill="transparent"
+                    filter="url(#capacityCircleGlow)"
+                    className="transition-all duration-1000 ease-out"
+                  />
+                </svg>
+
+                {/* Center Content */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+                  <div className="flex items-center gap-0.5 text-[#F3BA2F] mb-0.5">
+                    <Zap className="w-3 h-3 fill-[#F3BA2F]" />
+                  </div>
+                  <span className="text-xl sm:text-2xl font-black mono text-white tracking-tight leading-none">
+                    {capacityUtilizationPercent.toFixed(1)}%
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wider text-[#848E9C] font-extrabold mt-1">
+                    UTILIZED
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-1 text-center">
+                <span className="text-[11px] font-mono text-[#00C087] font-semibold">
+                  {userTotalPoints.toLocaleString()} / {dailyCapacityPoints.toLocaleString()} PTS
+                </span>
               </div>
             </div>
           </div>
