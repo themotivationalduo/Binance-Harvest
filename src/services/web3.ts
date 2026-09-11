@@ -189,18 +189,128 @@ export function detectWeb3Providers(): {
   isTrust: boolean;
   isBinance: boolean;
   isCoinbase: boolean;
+  isTokenPocket: boolean;
+  isOkx: boolean;
+  isBitKeep: boolean;
+  isSafePal: boolean;
+  detectedWalletName: string;
+  isInjectedMobile: boolean;
 } {
   if (typeof window === 'undefined') {
-    return { hasWeb3: false, isMetaMask: false, isTrust: false, isBinance: false, isCoinbase: false };
+    return {
+      hasWeb3: false,
+      isMetaMask: false,
+      isTrust: false,
+      isBinance: false,
+      isCoinbase: false,
+      isTokenPocket: false,
+      isOkx: false,
+      isBitKeep: false,
+      isSafePal: false,
+      detectedWalletName: 'Web3 Wallet',
+      isInjectedMobile: false,
+    };
   }
   const eth = (window as any).ethereum;
+  const tp = (window as any).tokenpocket;
+  const isTokenPocket = Boolean(tp || eth?.isTokenPocket);
+  const isTrust = Boolean(eth?.isTrust || eth?.isTrustWallet);
+  const isOkx = Boolean(eth?.isOkxWallet || (window as any).okxwallet);
+  const isBitKeep = Boolean(eth?.isBitKeep || (window as any).bitkeep);
+  const isSafePal = Boolean(eth?.isSafePal);
+  const isBinance = Boolean((window as any).BinanceChain || eth?.isBinance);
+  const isCoinbase = Boolean(eth?.isCoinbaseWallet);
+  const isMetaMask = Boolean(eth?.isMetaMask && !isTokenPocket && !isTrust && !isOkx && !isBitKeep);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+
+  let detectedWalletName = 'Web3 Wallet';
+  if (isTokenPocket) detectedWalletName = 'TokenPocket';
+  else if (isTrust) detectedWalletName = 'Trust Wallet';
+  else if (isOkx) detectedWalletName = 'OKX Wallet';
+  else if (isBitKeep) detectedWalletName = 'Bitget Wallet';
+  else if (isSafePal) detectedWalletName = 'SafePal';
+  else if (isBinance) detectedWalletName = 'Binance Web3';
+  else if (isCoinbase) detectedWalletName = 'Coinbase Wallet';
+  else if (isMetaMask) detectedWalletName = 'MetaMask';
+
   return {
-    hasWeb3: Boolean(eth),
-    isMetaMask: Boolean(eth?.isMetaMask),
-    isTrust: Boolean(eth?.isTrust || eth?.isTrustWallet),
-    isBinance: Boolean((window as any).BinanceChain || eth?.isBinance),
-    isCoinbase: Boolean(eth?.isCoinbaseWallet),
+    hasWeb3: Boolean(eth || tp),
+    isMetaMask,
+    isTrust,
+    isBinance,
+    isCoinbase,
+    isTokenPocket,
+    isOkx,
+    isBitKeep,
+    isSafePal,
+    detectedWalletName,
+    isInjectedMobile: isMobile && Boolean(eth || tp),
   };
+}
+
+/**
+ * Directly opens the BinanceHarvest dApp inside the TokenPocket built-in browser.
+ * Inside TokenPocket's browser, window.ethereum is natively injected with zero WalletConnect redirect errors.
+ */
+export function openInTokenPocketApp(url?: string): void {
+  if (typeof window === 'undefined') return;
+  const targetUrl = url || window.location.href;
+  const param = encodeURIComponent(JSON.stringify({ action: 'dapp', url: targetUrl }));
+  const directScheme = `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url: targetUrl }))}`;
+  const tpOutsideScheme = `tpoutside://pull.activity?param=${param}`;
+  const universalLink = `https://tokenpocket.vip/dapp?url=${encodeURIComponent(targetUrl)}`;
+
+  // Try direct native scheme first, then tpoutside scheme, then universal link
+  const now = Date.now();
+  window.location.href = tpOutsideScheme;
+  setTimeout(() => {
+    if (Date.now() - now < 1600) {
+      window.location.href = directScheme;
+      setTimeout(() => {
+        if (Date.now() - now < 2600) {
+          window.location.href = universalLink;
+        }
+      }, 800);
+    }
+  }, 700);
+}
+
+/**
+ * Resets and cleans any stale WalletConnect pairings, sessions, or cached tokens in localStorage.
+ * Resolves TokenPocket "connection error" caused by expired pairing topics.
+ */
+export function clearWalletConnectSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (activeWcProvider) {
+      try {
+        if (typeof activeWcProvider.disconnect === 'function') {
+          activeWcProvider.disconnect();
+        }
+      } catch (e) {
+        console.warn("Could not disconnect active WalletConnect session cleanly:", e);
+      }
+      activeWcProvider = null;
+    }
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith('wc@2:') ||
+          key.startsWith('WALLETCONNECT_') ||
+          key === 'walletconnect' ||
+          key === 'binance_harvest_wallet_type' ||
+          key === 'binance_harvest_active_wallet')
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    console.log("WalletConnect pairing cache cleared successfully:", keysToRemove.length, "keys removed");
+  } catch (err) {
+    console.warn("Error cleaning WalletConnect cache:", err);
+  }
 }
 
 export async function signWeb3AuthMessage(signer: ethers.Signer, address: string): Promise<string> {
@@ -211,11 +321,13 @@ export async function signWeb3AuthMessage(signer: ethers.Signer, address: string
 
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
 
+export type SupportedWalletType = 'walletconnect' | 'metamask' | 'tokenpocket' | 'injected';
+
 // Active Web3 state across the application
 let activeBrowserProvider: ethers.BrowserProvider | null = null;
 let activeSigner: ethers.Signer | null = null;
 let activeWcProvider: any = null;
-let activeWalletType: 'walletconnect' | 'metamask' | null = null;
+let activeWalletType: SupportedWalletType | null = null;
 
 export function getActiveSigner(): ethers.Signer | null {
   return activeSigner;
@@ -223,12 +335,15 @@ export function getActiveSigner(): ethers.Signer | null {
 
 export function getActiveBrowserProvider(): ethers.BrowserProvider | null {
   if (activeBrowserProvider) return activeBrowserProvider;
-  if (typeof window !== 'undefined' && (window as any).ethereum) {
-    try {
-      activeBrowserProvider = new ethers.BrowserProvider((window as any).ethereum);
-      return activeBrowserProvider;
-    } catch {
-      return null;
+  if (typeof window !== 'undefined') {
+    const rawEth = (window as any).tokenpocket || (window as any).ethereum;
+    if (rawEth) {
+      try {
+        activeBrowserProvider = new ethers.BrowserProvider(rawEth);
+        return activeBrowserProvider;
+      } catch {
+        return null;
+      }
     }
   }
   return null;
@@ -248,16 +363,43 @@ export async function getOrInitSigner(): Promise<ethers.Signer | null> {
   return null;
 }
 
-export async function connectWallet(walletType: 'walletconnect' | 'metamask' = 'walletconnect'): Promise<{
+export async function connectWallet(
+  walletType: SupportedWalletType = 'walletconnect',
+  options?: { clearCacheFirst?: boolean }
+): Promise<{
   address: string;
   provider: ethers.BrowserProvider;
   signer: ethers.Signer;
-  walletType: 'walletconnect' | 'metamask';
+  walletType: SupportedWalletType;
 }> {
   try {
     let rawProvider: any;
 
-    if (walletType === 'walletconnect') {
+    if (options?.clearCacheFirst) {
+      clearWalletConnectSession();
+    }
+
+    if (walletType === 'tokenpocket') {
+      const tp = typeof window !== 'undefined' ? ((window as any).tokenpocket || (window as any).ethereum) : null;
+      const isTpInjected = Boolean(tp?.isTokenPocket || (window as any).tokenpocket);
+
+      if (isTpInjected && tp) {
+        // User is directly inside TokenPocket dApp browser or TokenPocket extension
+        rawProvider = tp;
+        await rawProvider.request({ method: "eth_requestAccounts" });
+      } else {
+        // User clicked TokenPocket from external browser (Safari/Chrome)
+        // If on mobile device, prompt opening in TokenPocket app directly
+        const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+        if (isMobile) {
+          openInTokenPocketApp();
+          throw new Error("TOKENPOCKET_REDIRECTING: Launching TokenPocket app. Please continue in TokenPocket.");
+        } else {
+          // On desktop without extension, fallback to WalletConnect
+          return await connectWallet('walletconnect');
+        }
+      }
+    } else if (walletType === 'walletconnect') {
       // Reown / WalletConnect AppKit Project ID
       const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '3a8170812b534d0ff9d794f19a901d64';
       
@@ -266,14 +408,42 @@ export async function connectWallet(walletType: 'walletconnect' | 'metamask' = '
         ? `${window.location.origin}/bhft-logo.svg`
         : 'https://binanceharvest.vercel.app/bhft-logo.svg';
 
-      // Initialize WalletConnect EthereumProvider on Binance Smart Chain (BSC Mainnet - Chain 56)
+      // High-availability RPC endpoints for Binance Smart Chain
+      const rpcMap: Record<number, string> = {
+        56: 'https://binance.llamarpc.com',
+        1: 'https://eth.llamarpc.com',
+      };
+
+      /**
+       * TokenPocket and multi-chain wallets require:
+       * 1) optionalChains with both BSC (56) and Ethereum (1) so TokenPocket won't reject the
+       *    proposal if the user's active wallet happens to be on Ethereum or Tron.
+       * 2) Explicit methods and optionalMethods (especially wallet_switchEthereumChain).
+       * 3) Proper RPC map with HTTPS CORS headers.
+       */
       const wcProvider = await EthereumProvider.init({
         projectId,
         chains: [56],
-        optionalChains: [56],
-        rpcMap: {
-          56: 'https://bsc-dataseed.binance.org/',
-        },
+        optionalChains: [56, 1],
+        methods: [
+          'eth_sendTransaction',
+          'personal_sign',
+          'eth_accounts',
+          'eth_requestAccounts',
+        ],
+        optionalMethods: [
+          'eth_signTransaction',
+          'eth_sign',
+          'eth_signTypedData',
+          'eth_signTypedData_v3',
+          'eth_signTypedData_v4',
+          'wallet_switchEthereumChain',
+          'wallet_addEthereumChain',
+          'wallet_watchAsset',
+        ],
+        events: ['chainChanged', 'accountsChanged'],
+        optionalEvents: ['chainChanged', 'accountsChanged', 'message', 'disconnect', 'connect'],
+        rpcMap,
         showQrModal: true,
         qrModalOptions: {
           themeMode: 'dark',
@@ -291,7 +461,7 @@ export async function connectWallet(walletType: 'walletconnect' | 'metamask' = '
         }
       });
 
-      // Connect session; on mobile/Telegram, AppKit presents deep links for Trust Wallet, TokenPocket, MetaMask, etc.
+      // Connect session; on mobile, presents universal/deep links for Trust Wallet, TokenPocket, MetaMask, etc.
       try {
         await wcProvider.connect();
       } catch (connErr: any) {
@@ -303,16 +473,25 @@ export async function connectWallet(walletType: 'walletconnect' | 'metamask' = '
         ) {
           throw new Error("USER_CANCELLED: WalletConnect modal closed.");
         }
+        // If TokenPocket or another wallet rejected due to chain mismatch or pairing error
+        if (
+          connErr?.message?.includes('No matching key') ||
+          connErr?.message?.includes('Pairing') ||
+          connErr?.message?.includes('Chain not supported')
+        ) {
+          clearWalletConnectSession();
+          throw new Error("TokenPocket connection error: Please ensure your active wallet in TokenPocket is set to Binance Smart Chain (BSC), or tap 'Open in TokenPocket' to open the app directly.");
+        }
         throw connErr;
       }
 
       rawProvider = wcProvider;
       activeWcProvider = wcProvider;
     } else {
-      const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+      const ethereum = typeof window !== 'undefined' ? ((window as any).tokenpocket || (window as any).ethereum) : null;
       if (!ethereum) {
         throw new Error(
-          "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension detected in this browser. Please use WalletConnect (AppKit) for Trust Wallet, TokenPocket, or mobile dApp connection."
+          "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension detected in this browser. Please use WalletConnect or open directly in TokenPocket dApp browser."
         );
       }
       rawProvider = ethereum;
@@ -358,10 +537,7 @@ export async function connectWallet(walletType: 'walletconnect' | 'metamask' = '
         activeSigner = null;
         activeWcProvider = null;
         activeWalletType = null;
-        localStorage.removeItem('binance_harvest_active_wallet');
-        localStorage.removeItem('binance_harvest_wallet_type');
-        localStorage.removeItem('walletconnect');
-        localStorage.removeItem('wc@2:ethereum_provider:chainId');
+        clearWalletConnectSession();
         window.location.reload();
       });
     }
@@ -409,8 +585,11 @@ export async function reconnectExistingWallet(): Promise<{
       const wcProvider = await EthereumProvider.init({
         projectId,
         chains: [56],
-        optionalChains: [56],
-        rpcMap: { 56: 'https://bsc-dataseed.binance.org/' },
+        optionalChains: [56, 1],
+        rpcMap: {
+          56: 'https://binance.llamarpc.com',
+          1: 'https://eth.llamarpc.com',
+        },
         showQrModal: false,
         metadata: {
           name: 'BinanceHarvest',
@@ -436,20 +615,23 @@ export async function reconnectExistingWallet(): Promise<{
     } catch (e) {
       console.warn("Could not auto-restore WalletConnect session:", e);
     }
-  } else if (typeof window !== 'undefined' && (window as any).ethereum) {
-    try {
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const accounts = await provider.send("eth_accounts", []);
-      if (accounts && accounts.length > 0) {
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
-        activeBrowserProvider = provider;
-        activeSigner = signer;
-        activeWalletType = 'metamask';
-        return { address, provider, signer };
+  } else if (typeof window !== 'undefined') {
+    const rawEth = (window as any).tokenpocket || (window as any).ethereum;
+    if (rawEth) {
+      try {
+        const provider = new ethers.BrowserProvider(rawEth);
+        const accounts = await provider.send("eth_accounts", []);
+        if (accounts && accounts.length > 0) {
+          const signer = await provider.getSigner();
+          const address = await signer.getAddress();
+          activeBrowserProvider = provider;
+          activeSigner = signer;
+          activeWalletType = (savedType as SupportedWalletType) || 'injected';
+          return { address, provider, signer };
+        }
+      } catch (e) {
+        console.warn("Could not auto-restore injected wallet:", e);
       }
-    } catch (e) {
-      console.warn("Could not auto-restore injected wallet:", e);
     }
   }
   return null;

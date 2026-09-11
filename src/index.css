@@ -64,4 +64,115 @@ body {
   background: rgba(243, 186, 47, 0.7);
 }
 
+/* ========================================================= */
+/* HIGH-CONTRAST ACCESSIBILITY THEME (WCAG AAA Readability)  */
+/* ========================================================= */
+html.high-contrast,
+body.high-contrast {
+  --binance-yellow: #FFE600;
+  --bg-primary: #000000;
+  --bg-secondary: #0A0A0C;
+  --bg-card: #141416;
+  --line: rgba(255, 255, 255, 0.4);
+  --success: #00FF88;
+  --text-muted: #E2E8F0;
+}
+
+html.high-contrast body {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+/* High-contrast text readability: make muted and dark text ultra legible */
+html.high-contrast .text-slate-400,
+html.high-contrast .text-slate-500,
+html.high-contrast .text-gray-400,
+html.high-contrast .text-gray-500,
+html.high-contrast .text-\[\#848E9C\],
+html.high-contrast .text-\[\#848e9c\],
+html.high-contrast .text-neutral-400,
+html.high-contrast .text-zinc-400 {
+  color: #E2E8F0 !important;
+}
+
+html.high-contrast .text-slate-300,
+html.high-contrast .text-gray-300,
+html.high-contrast .text-neutral-300 {
+  color: #FFFFFF !important;
+}
+
+html.high-contrast .text-slate-200,
+html.high-contrast .text-gray-200 {
+  color: #FFFFFF !important;
+}
+
+/* High-contrast borders: sharp, distinct element boundaries */
+html.high-contrast .border-white\/5,
+html.high-contrast .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+html.high-contrast .border-white\/15,
+html.high-contrast .border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* High-contrast card surfaces: deep black with elevated contrast */
+html.high-contrast .bg-\[\#0B0E11\]\/95,
+html.high-contrast .bg-\[\#0B0E11\]\/90,
+html.high-contrast .bg-\[\#0B0E11\],
+html.high-contrast .bg-\[\#12131F\]\/60,
+html.high-contrast .bg-\[\#12131F\]\/80,
+html.high-contrast .bg-\[\#12131F\]\/95,
+html.high-contrast .bg-\[\#12131F\],
+html.high-contrast .bg-\[\#1E2329\]\/90,
+html.high-contrast .bg-\[\#1E2329\] {
+  background-color: #0c0d12 !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+html.high-contrast .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html.high-contrast .bg-black\/40,
+html.high-contrast .bg-black\/50,
+html.high-contrast .bg-black\/60 {
+  background-color: #050507 !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* Vivid accent colors in high-contrast mode */
+html.high-contrast .text-\[\#F3BA2F\],
+html.high-contrast .text-amber-400,
+html.high-contrast .text-yellow-400 {
+  color: #FFE600 !important;
+}
+
+html.high-contrast .bg-\[\#F3BA2F\],
+html.high-contrast .bg-amber-400 {
+  background-color: #FFE600 !important;
+  color: #000000 !important;
+}
+
+html.high-contrast .text-\[\#00C087\],
+html.high-contrast .text-emerald-400 {
+  color: #00FF88 !important;
+}
+
+html.high-contrast .border-\[\#F3BA2F\],
+html.high-contrast .border-amber-400 {
+  border-color: #FFE600 !important;
+}
+
+/* High-contrast scrollbars */
+html.high-contrast .custom-scrollbar {
+  scrollbar-color: #FFE600 rgba(255, 255, 255, 0.1);
+}
+html.high-contrast .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #FFE600;
+}
+
+
 

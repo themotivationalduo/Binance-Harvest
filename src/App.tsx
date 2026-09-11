@@ -7,6 +7,7 @@ import { fetchLiveBNBPrice, connectWallet, disconnectWallet, reconnectExistingWa
 import { getUserProfile, updateUserProfileFields, subscribeToUserProfile } from './services/firebase';
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
 import { resolveInitialRoute, VALID_TABS } from './utils/referral';
+import { getStoredTheme, applyTheme } from './utils/theme';
 
 // Dynamic lazy imports for ultra-fast bundle size & instant initial paint
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -33,6 +34,9 @@ export default function App() {
   });
 
   useEffect(() => {
+    // Apply persisted theme preference on mount
+    applyTheme(getStoredTheme());
+
     // Check auth status synchronously
     const isAuthenticated = Boolean(localStorage.getItem('binance_harvest_active_wallet'));
     

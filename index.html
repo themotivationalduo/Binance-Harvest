@@ -86,6 +86,17 @@
           console.warn('Polyfill guard initialization warning:', e);
         }
       })();
+
+      // Instant theme preload to prevent flash of unstyled theme
+      (function() {
+        try {
+          var savedTheme = localStorage.getItem('binance_harvest_theme');
+          if (savedTheme === 'high-contrast') {
+            document.documentElement.classList.add('high-contrast');
+            document.documentElement.setAttribute('data-theme', 'high-contrast');
+          }
+        } catch (e) {}
+      })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/bhft-logo.svg" />

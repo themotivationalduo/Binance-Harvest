@@ -30,8 +30,17 @@ import {
   SlidersHorizontal,
   ArrowUpRight,
   ChevronLeft,
-  AlertTriangle
+  AlertTriangle,
+  Contrast,
+  Moon,
+  Sun,
+  Eye
 } from 'lucide-react';
+import { 
+  getStoredTheme, 
+  applyTheme, 
+  AppTheme 
+} from '../utils/theme';
 import { 
   switchToBSC, 
   TREASURY_WALLET, 
@@ -131,6 +140,32 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   const [notificationState, setNotificationState] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
   const [switchingNetwork, setSwitchingNetwork] = useState(false);
+
+  // Theme & Readability mode
+  const [theme, setTheme] = useState<AppTheme>(getStoredTheme);
+
+  useEffect(() => {
+    const handleThemeChange = (e: any) => {
+      if (e?.detail?.theme) {
+        setTheme(e.detail.theme);
+      }
+    };
+    window.addEventListener('themechange', handleThemeChange);
+    return () => window.removeEventListener('themechange', handleThemeChange);
+  }, []);
+
+  const handleToggleTheme = (newTheme: AppTheme) => {
+    setTheme(newTheme);
+    applyTheme(newTheme);
+    showSuccess({
+      initiativeName: 'Display Preferences',
+      title: newTheme === 'high-contrast' ? 'High-Contrast Mode Activated' : 'Default Dark Mode Activated',
+      badge: newTheme === 'high-contrast' ? 'WCAG AAA' : 'Stealth Glass',
+      description: newTheme === 'high-contrast'
+        ? 'High-contrast typography, bold solid borders, and enhanced readability activated.'
+        : 'Restored default Binance dark stealth theme.',
+    });
+  };
 
   // Derived Balance calculations
   const bhftBalance = user.miningBalance || 0;
@@ -764,7 +799,66 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* 6. ACCOUNT & NETWORK CONTROL BUTTON (Settings Drawer)     */}
+      {/* 6. THEME SWITCHER & READABILITY PREFERENCES               */}
+      {/* ========================================================= */}
+      <div className="p-4 rounded-2xl bg-[#12131F]/60 border border-white/10 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-[#F3BA2F]">
+              <Contrast className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Display Theme</span>
+                <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                  theme === 'high-contrast' 
+                    ? 'bg-amber-400 text-black shadow-sm' 
+                    : 'bg-white/10 text-slate-300 border border-white/15'
+                }`}>
+                  {theme === 'high-contrast' ? 'HIGH-CONTRAST' : 'DEFAULT DARK'}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Switch between stealth dark glass and high-contrast text readability
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Segmented Switcher Controls */}
+        <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
+          <button
+            type="button"
+            onClick={() => handleToggleTheme('dark')}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${
+              theme === 'dark'
+                ? 'bg-white/15 text-white shadow-sm border border-white/20'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Moon className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-[#F3BA2F]' : ''}`} />
+            <span>Default Dark</span>
+            {theme === 'dark' && <Check className="w-3 h-3 text-[#F3BA2F] ml-0.5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleToggleTheme('high-contrast')}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${
+              theme === 'high-contrast'
+                ? 'bg-[#F3BA2F] text-black shadow-md font-extrabold'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Contrast className="w-3.5 h-3.5" />
+            <span>High Contrast</span>
+            {theme === 'high-contrast' && <Check className="w-3 h-3 text-black ml-0.5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 7. ACCOUNT & NETWORK CONTROL BUTTON (Settings Drawer)     */}
       {/* ========================================================= */}
       <div className="pt-2">
         <button
@@ -1796,6 +1890,50 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 >
                   {notificationState === 'granted' ? 'Enabled' : 'Enable'}
                 </button>
+              </div>
+
+              {/* Theme & Display Contrast Switcher */}
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Contrast className="w-4 h-4 text-[#F3BA2F]" />
+                    <div>
+                      <div className="text-xs font-bold text-white">Display Theme</div>
+                      <div className="text-[10px] text-slate-400">Toggle high-contrast for easier reading</div>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-mono ${
+                    theme === 'high-contrast' ? 'bg-[#F3BA2F] text-black' : 'bg-white/10 text-slate-300'
+                  }`}>
+                    {theme === 'high-contrast' ? 'High Contrast' : 'Default Dark'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTheme('dark')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                      theme === 'dark'
+                        ? 'bg-white/15 border-white/30 text-white'
+                        : 'bg-black/30 border-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5" />
+                    <span>Default Dark</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTheme('high-contrast')}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                      theme === 'high-contrast'
+                        ? 'bg-[#F3BA2F] border-[#F3BA2F] text-black font-extrabold'
+                        : 'bg-black/30 border-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Contrast className="w-3.5 h-3.5" />
+                    <span>High Contrast</span>
+                  </button>
+                </div>
               </div>
 
               {/* Achievements */}
