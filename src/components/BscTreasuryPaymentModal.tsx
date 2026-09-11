@@ -416,7 +416,7 @@ export const BscTreasuryPaymentModal: React.FC<BscTreasuryPaymentModalProps> = (
             }`}
           >
             <Smartphone className="w-3.5 h-3.5 text-sky-400" />
-            <span>Telegram Mini App</span>
+            <span>Telegram OTC</span>
             {runtime.isTelegram && (
               <span className="text-[9px] px-1 py-0.2 rounded bg-sky-400/30 text-sky-200 font-bold">
                 Auto
@@ -436,8 +436,8 @@ export const BscTreasuryPaymentModal: React.FC<BscTreasuryPaymentModalProps> = (
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Globe className="w-3.5 h-3.5 text-amber-400" />
-            <span>Native Web3 / DApp</span>
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span>Direct on-chain</span>
             {!runtime.isTelegram && (
               <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/30 text-amber-200 font-bold">
                 Auto
@@ -806,7 +806,7 @@ export const BscTreasuryPaymentModal: React.FC<BscTreasuryPaymentModalProps> = (
                         className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Zap className="w-3.5 h-3.5" />
-                        <span>Connect Injected Web3</span>
+                        <span>Direct Connect</span>
                       </button>
                     )}
                     <button
@@ -816,7 +816,7 @@ export const BscTreasuryPaymentModal: React.FC<BscTreasuryPaymentModalProps> = (
                       className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                     >
                       <Wallet className="w-3.5 h-3.5" />
-                      <span>WalletConnect</span>
+                      <span>Wallet Connect</span>
                     </button>
                   </div>
                 </div>

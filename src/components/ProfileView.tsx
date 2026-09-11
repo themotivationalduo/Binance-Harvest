@@ -343,7 +343,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         showSuccess({
           initiativeName: 'BEP-20 Asset Integration',
           title: 'BHFT Added to Wallet!',
-          badge: 'MetaMask Sync',
+          badge: 'Web3 Wallet Sync',
           description: 'BinanceHarvest (BHFT) token asset was successfully imported into your Web3 wallet.',
           details: [
             { label: 'Token Name', value: BHFT_TOKEN_NAME },
@@ -1092,7 +1092,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       className="py-2.5 px-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-violet-600/30 cursor-pointer"
                     >
                       <PlusCircle className="w-4 h-4" />
-                      <span>{addingToken ? 'Adding...' : 'Add to MetaMask'}</span>
+                      <span>{addingToken ? 'Adding...' : 'Add to Web3 Wallet'}</span>
                     </button>
                   </div>
                 </>
@@ -1800,7 +1800,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-violet-600/30"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    <span>{addingToken ? 'Adding...' : 'Import to MetaMask'}</span>
+                    <span>{addingToken ? 'Adding...' : 'Import to Web3 Wallet'}</span>
                   </button>
                 </div>
               ) : (

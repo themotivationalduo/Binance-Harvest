@@ -183,6 +183,31 @@ export function isMetaMaskInstalled(): boolean {
   return typeof window !== 'undefined' && Boolean((window as any).ethereum);
 }
 
+export function isWeb3Injected(): boolean {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w.ethereum ||
+    w.tokenpocket ||
+    w.okxwallet ||
+    w.trustwallet ||
+    w.bitkeep ||
+    w.safepalProvider ||
+    w.BinanceChain ||
+    w.coinbaseWalletExtension ||
+    w.phantom?.ethereum
+  );
+}
+
+export interface DetectedWalletOption {
+  id: SupportedWalletType;
+  name: string;
+  isDetected: boolean;
+  iconBg: string;
+  iconText: string;
+  badge?: string;
+}
+
 export function detectWeb3Providers(): {
   hasWeb3: boolean;
   isMetaMask: boolean;
@@ -193,8 +218,11 @@ export function detectWeb3Providers(): {
   isOkx: boolean;
   isBitKeep: boolean;
   isSafePal: boolean;
+  isRabby: boolean;
+  isRainbow: boolean;
   detectedWalletName: string;
   isInjectedMobile: boolean;
+  detectedWalletsList: DetectedWalletOption[];
 } {
   if (typeof window === 'undefined') {
     return {
@@ -207,34 +235,58 @@ export function detectWeb3Providers(): {
       isOkx: false,
       isBitKeep: false,
       isSafePal: false,
+      isRabby: false,
+      isRainbow: false,
       detectedWalletName: 'Web3 Wallet',
       isInjectedMobile: false,
+      detectedWalletsList: [],
     };
   }
-  const eth = (window as any).ethereum;
-  const tp = (window as any).tokenpocket;
-  const isTokenPocket = Boolean(tp || eth?.isTokenPocket);
-  const isTrust = Boolean(eth?.isTrust || eth?.isTrustWallet);
-  const isOkx = Boolean(eth?.isOkxWallet || (window as any).okxwallet);
-  const isBitKeep = Boolean(eth?.isBitKeep || (window as any).bitkeep);
-  const isSafePal = Boolean(eth?.isSafePal);
-  const isBinance = Boolean((window as any).BinanceChain || eth?.isBinance);
-  const isCoinbase = Boolean(eth?.isCoinbaseWallet);
-  const isMetaMask = Boolean(eth?.isMetaMask && !isTokenPocket && !isTrust && !isOkx && !isBitKeep);
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const w = window as any;
+  const eth = w.ethereum;
+  const tp = w.tokenpocket;
 
-  let detectedWalletName = 'Web3 Wallet';
+  const isTokenPocket = Boolean(tp || eth?.isTokenPocket);
+  const isTrust = Boolean(w.trustwallet || eth?.isTrust || eth?.isTrustWallet);
+  const isOkx = Boolean(w.okxwallet || eth?.isOkxWallet || eth?.isOKExWallet);
+  const isBitKeep = Boolean(w.bitkeep || eth?.isBitKeep || eth?.isBitget);
+  const isSafePal = Boolean(w.safepalProvider || eth?.isSafePal);
+  const isBinance = Boolean(w.BinanceChain || eth?.isBinance || eth?.isBscStorage);
+  const isCoinbase = Boolean(w.coinbaseWalletExtension || eth?.isCoinbaseWallet);
+  const isRabby = Boolean(eth?.isRabby);
+  const isRainbow = Boolean(eth?.isRainbow);
+  const isMetaMask = Boolean(eth?.isMetaMask && !isTokenPocket && !isTrust && !isOkx && !isBitKeep && !isSafePal && !isBinance && !isRabby);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  const hasWeb3 = Boolean(eth || tp || w.okxwallet || w.trustwallet || w.BinanceChain || w.bitkeep || w.safepalProvider || w.coinbaseWalletExtension);
+
+  let detectedWalletName = 'Web3 Wallet (EIP-1193)';
   if (isTokenPocket) detectedWalletName = 'TokenPocket';
   else if (isTrust) detectedWalletName = 'Trust Wallet';
   else if (isOkx) detectedWalletName = 'OKX Wallet';
+  else if (isBinance) detectedWalletName = 'Binance Web3 Wallet';
   else if (isBitKeep) detectedWalletName = 'Bitget Wallet';
   else if (isSafePal) detectedWalletName = 'SafePal';
-  else if (isBinance) detectedWalletName = 'Binance Web3';
+  else if (isRabby) detectedWalletName = 'Rabby Wallet';
   else if (isCoinbase) detectedWalletName = 'Coinbase Wallet';
+  else if (isRainbow) detectedWalletName = 'Rainbow';
   else if (isMetaMask) detectedWalletName = 'MetaMask';
+  else if (hasWeb3) detectedWalletName = 'Injected Web3 Provider';
+
+  const detectedWalletsList: DetectedWalletOption[] = [
+    { id: 'injected', name: 'Injected Web3 (Any Provider)', isDetected: hasWeb3, iconBg: 'bg-gradient-to-tr from-amber-500 to-yellow-400', iconText: 'W3', badge: hasWeb3 ? 'ACTIVE' : undefined },
+    { id: 'trust', name: 'Trust Wallet', isDetected: isTrust, iconBg: 'bg-blue-600', iconText: 'TW', badge: isTrust ? 'DETECTED' : undefined },
+    { id: 'okx', name: 'OKX Wallet', isDetected: isOkx, iconBg: 'bg-black border border-white/20', iconText: 'OKX', badge: isOkx ? 'DETECTED' : undefined },
+    { id: 'binance', name: 'Binance Web3 Wallet', isDetected: isBinance, iconBg: 'bg-[#F3BA2F]', iconText: 'BNB', badge: isBinance ? 'DETECTED' : undefined },
+    { id: 'tokenpocket', name: 'TokenPocket', isDetected: isTokenPocket, iconBg: 'bg-blue-500', iconText: 'TP', badge: isTokenPocket ? 'DETECTED' : undefined },
+    { id: 'metamask', name: 'MetaMask', isDetected: isMetaMask, iconBg: 'bg-orange-500', iconText: '🦊', badge: isMetaMask ? 'DETECTED' : undefined },
+    { id: 'bitget', name: 'Bitget Wallet', isDetected: isBitKeep, iconBg: 'bg-teal-500', iconText: 'BG', badge: isBitKeep ? 'DETECTED' : undefined },
+    { id: 'safepal', name: 'SafePal', isDetected: isSafePal, iconBg: 'bg-indigo-600', iconText: 'SFP', badge: isSafePal ? 'DETECTED' : undefined },
+    { id: 'coinbase', name: 'Coinbase Wallet', isDetected: isCoinbase, iconBg: 'bg-blue-700', iconText: 'CB', badge: isCoinbase ? 'DETECTED' : undefined },
+    { id: 'rabby', name: 'Rabby Wallet', isDetected: isRabby, iconBg: 'bg-purple-600', iconText: 'RB', badge: isRabby ? 'DETECTED' : undefined },
+  ];
 
   return {
-    hasWeb3: Boolean(eth || tp),
+    hasWeb3,
     isMetaMask,
     isTrust,
     isBinance,
@@ -243,8 +295,11 @@ export function detectWeb3Providers(): {
     isOkx,
     isBitKeep,
     isSafePal,
+    isRabby,
+    isRainbow,
     detectedWalletName,
-    isInjectedMobile: isMobile && Boolean(eth || tp),
+    isInjectedMobile: isMobile && hasWeb3,
+    detectedWalletsList,
   };
 }
 
@@ -321,7 +376,18 @@ export async function signWeb3AuthMessage(signer: ethers.Signer, address: string
 
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
 
-export type SupportedWalletType = 'walletconnect' | 'metamask' | 'tokenpocket' | 'injected';
+export type SupportedWalletType = 
+  | 'injected' 
+  | 'walletconnect' 
+  | 'metamask' 
+  | 'tokenpocket' 
+  | 'trust' 
+  | 'okx' 
+  | 'binance' 
+  | 'bitget' 
+  | 'safepal' 
+  | 'coinbase' 
+  | 'rabby';
 
 // Active Web3 state across the application
 let activeBrowserProvider: ethers.BrowserProvider | null = null;
@@ -333,17 +399,84 @@ export function getActiveSigner(): ethers.Signer | null {
   return activeSigner;
 }
 
+/**
+ * Universally retrieves the active or requested injected Web3 provider across all wallets
+ * (Trust Wallet, OKX Wallet, Binance Web3, MetaMask, TokenPocket, Bitget, SafePal, Coinbase, Rabby, etc.)
+ */
+export function getInjectedRawProvider(preferredType?: SupportedWalletType): any {
+  if (typeof window === 'undefined') return null;
+  const w = window as any;
+  const eth = w.ethereum;
+
+  // 1. If a specific provider was requested
+  if (preferredType === 'tokenpocket') {
+    if (w.tokenpocket) return w.tokenpocket;
+    if (eth?.isTokenPocket) return eth;
+  } else if (preferredType === 'trust') {
+    if (w.trustwallet) return w.trustwallet;
+    if (eth?.isTrust || eth?.isTrustWallet) return eth;
+  } else if (preferredType === 'okx') {
+    if (w.okxwallet) return w.okxwallet;
+    if (eth?.isOkxWallet || eth?.isOKExWallet) return eth;
+  } else if (preferredType === 'binance') {
+    if (w.BinanceChain) return w.BinanceChain;
+    if (eth?.isBinance || eth?.isBscStorage) return eth;
+  } else if (preferredType === 'bitget') {
+    if (w.bitkeep?.ethereum) return w.bitkeep.ethereum;
+    if (eth?.isBitKeep || eth?.isBitget) return eth;
+  } else if (preferredType === 'safepal') {
+    if (w.safepalProvider) return w.safepalProvider;
+    if (eth?.isSafePal) return eth;
+  } else if (preferredType === 'coinbase') {
+    if (w.coinbaseWalletExtension) return w.coinbaseWalletExtension;
+    if (eth?.isCoinbaseWallet) return eth;
+  } else if (preferredType === 'rabby') {
+    if (eth?.isRabby) return eth;
+  } else if (preferredType === 'metamask') {
+    if (eth?.isMetaMask && !eth?.isTokenPocket && !eth?.isTrust && !eth?.isOkxWallet && !eth?.isBitKeep && !eth?.isBinance && !eth?.isSafePal) {
+      return eth;
+    }
+  }
+
+  // 2. Check multi-provider array (EIP-6963 / window.ethereum.providers)
+  if (eth?.providers && Array.isArray(eth.providers) && eth.providers.length > 0) {
+    if (preferredType === 'trust') {
+      const match = eth.providers.find((p: any) => p.isTrust || p.isTrustWallet);
+      if (match) return match;
+    } else if (preferredType === 'okx') {
+      const match = eth.providers.find((p: any) => p.isOkxWallet || p.isOKExWallet);
+      if (match) return match;
+    } else if (preferredType === 'metamask') {
+      const match = eth.providers.find((p: any) => p.isMetaMask && !p.isTrust && !p.isOkxWallet && !p.isTokenPocket);
+      if (match) return match;
+    }
+    return eth.providers[0];
+  }
+
+  // 3. Fallback to any standalone or universal injected provider
+  return (
+    w.tokenpocket ||
+    w.trustwallet ||
+    w.okxwallet ||
+    w.bitkeep?.ethereum ||
+    w.safepalProvider ||
+    w.BinanceChain ||
+    w.coinbaseWalletExtension ||
+    w.phantom?.ethereum ||
+    eth ||
+    null
+  );
+}
+
 export function getActiveBrowserProvider(): ethers.BrowserProvider | null {
   if (activeBrowserProvider) return activeBrowserProvider;
-  if (typeof window !== 'undefined') {
-    const rawEth = (window as any).tokenpocket || (window as any).ethereum;
-    if (rawEth) {
-      try {
-        activeBrowserProvider = new ethers.BrowserProvider(rawEth);
-        return activeBrowserProvider;
-      } catch {
-        return null;
-      }
+  const rawEth = getInjectedRawProvider(activeWalletType || undefined);
+  if (rawEth) {
+    try {
+      activeBrowserProvider = new ethers.BrowserProvider(rawEth);
+      return activeBrowserProvider;
+    } catch {
+      return null;
     }
   }
   return null;
@@ -364,7 +497,7 @@ export async function getOrInitSigner(): Promise<ethers.Signer | null> {
 }
 
 export async function connectWallet(
-  walletType: SupportedWalletType = 'walletconnect',
+  walletType: SupportedWalletType = 'injected',
   options?: { clearCacheFirst?: boolean }
 ): Promise<{
   address: string;
@@ -380,22 +513,18 @@ export async function connectWallet(
     }
 
     if (walletType === 'tokenpocket') {
-      const tp = typeof window !== 'undefined' ? ((window as any).tokenpocket || (window as any).ethereum) : null;
-      const isTpInjected = Boolean(tp?.isTokenPocket || (window as any).tokenpocket);
+      const tp = getInjectedRawProvider('tokenpocket');
+      const isTpInjected = Boolean(tp?.isTokenPocket || (window as any)?.tokenpocket);
 
       if (isTpInjected && tp) {
-        // User is directly inside TokenPocket dApp browser or TokenPocket extension
         rawProvider = tp;
         await rawProvider.request({ method: "eth_requestAccounts" });
       } else {
-        // User clicked TokenPocket from external browser (Safari/Chrome)
-        // If on mobile device, prompt opening in TokenPocket app directly
         const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
         if (isMobile) {
           openInTokenPocketApp();
           throw new Error("TOKENPOCKET_REDIRECTING: Launching TokenPocket app. Please continue in TokenPocket.");
         } else {
-          // On desktop without extension, fallback to WalletConnect
           return await connectWallet('walletconnect');
         }
       }
@@ -414,13 +543,6 @@ export async function connectWallet(
         1: 'https://eth.llamarpc.com',
       };
 
-      /**
-       * TokenPocket and multi-chain wallets require:
-       * 1) optionalChains with both BSC (56) and Ethereum (1) so TokenPocket won't reject the
-       *    proposal if the user's active wallet happens to be on Ethereum or Tron.
-       * 2) Explicit methods and optionalMethods (especially wallet_switchEthereumChain).
-       * 3) Proper RPC map with HTTPS CORS headers.
-       */
       const wcProvider = await EthereumProvider.init({
         projectId,
         chains: [56],
@@ -461,7 +583,6 @@ export async function connectWallet(
         }
       });
 
-      // Connect session; on mobile, presents universal/deep links for Trust Wallet, TokenPocket, MetaMask, etc.
       try {
         await wcProvider.connect();
       } catch (connErr: any) {
@@ -473,14 +594,13 @@ export async function connectWallet(
         ) {
           throw new Error("USER_CANCELLED: WalletConnect modal closed.");
         }
-        // If TokenPocket or another wallet rejected due to chain mismatch or pairing error
         if (
           connErr?.message?.includes('No matching key') ||
           connErr?.message?.includes('Pairing') ||
           connErr?.message?.includes('Chain not supported')
         ) {
           clearWalletConnectSession();
-          throw new Error("TokenPocket connection error: Please ensure your active wallet in TokenPocket is set to Binance Smart Chain (BSC), or tap 'Open in TokenPocket' to open the app directly.");
+          throw new Error("Connection pairing error: Please ensure your active wallet is set to Binance Smart Chain (BSC).");
         }
         throw connErr;
       }
@@ -488,13 +608,14 @@ export async function connectWallet(
       rawProvider = wcProvider;
       activeWcProvider = wcProvider;
     } else {
-      const ethereum = typeof window !== 'undefined' ? ((window as any).tokenpocket || (window as any).ethereum) : null;
-      if (!ethereum) {
+      // General Injected Provider handling for ANY wallet (Trust, OKX, Binance, MetaMask, Bitget, SafePal, etc.)
+      const injected = getInjectedRawProvider(walletType);
+      if (!injected) {
         throw new Error(
-          "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension detected in this browser. Please use WalletConnect or open directly in TokenPocket dApp browser."
+          "WEB3_WALLET_NOT_FOUND: No Web3 wallet extension or provider detected in this browser. Please use WalletConnect or open directly in your Web3 wallet's built-in DApp browser."
         );
       }
-      rawProvider = ethereum;
+      rawProvider = injected;
       await rawProvider.request({ method: "eth_requestAccounts" });
     }
 
@@ -616,7 +737,7 @@ export async function reconnectExistingWallet(): Promise<{
       console.warn("Could not auto-restore WalletConnect session:", e);
     }
   } else if (typeof window !== 'undefined') {
-    const rawEth = (window as any).tokenpocket || (window as any).ethereum;
+    const rawEth = getInjectedRawProvider(savedType as SupportedWalletType || undefined);
     if (rawEth) {
       try {
         const provider = new ethers.BrowserProvider(rawEth);
@@ -649,11 +770,11 @@ export async function switchToBSC(): Promise<boolean> {
       return false;
     }
   }
-  const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
-  if (!ethereum) return false;
+  const rawProvider = getInjectedRawProvider(activeWalletType || undefined);
+  if (!rawProvider) return false;
 
   try {
-    await ethereum.request({
+    await rawProvider.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: BSC_CHAIN_ID }],
     });
@@ -661,13 +782,13 @@ export async function switchToBSC(): Promise<boolean> {
   } catch (switchError: any) {
     if (switchError.code === 4902) {
       try {
-        await ethereum.request({
+        await rawProvider.request({
           method: 'wallet_addEthereumChain',
           params: [BSC_PARAMS],
         });
         return true;
       } catch (addError) {
-        console.error("Failed to add BSC network to MetaMask:", addError);
+        console.error("Failed to add BSC network to Web3 wallet:", addError);
         return false;
       }
     }
@@ -683,7 +804,7 @@ export async function sendBNBTransaction(
 ): Promise<{ txHash: string; bnbAmountStr: string; bnbAmountWei: bigint }> {
   if (!signer) {
     throw new Error(
-      "No active Web3 signer. Please connect your MetaMask or Web3 wallet on Binance Smart Chain to confirm and sign this transaction."
+      "No active Web3 signer. Please connect your Web3 wallet on Binance Smart Chain to confirm and sign this transaction."
     );
   }
 
@@ -749,11 +870,12 @@ export const BHFT_TOKEN_DECIMALS = 18;
 export const BHFT_TOTAL_SUPPLY = "10,000";
 
 export async function addBHFTToWallet(): Promise<boolean> {
-  if (typeof window === 'undefined' || !(window as any).ethereum) {
-    throw new Error("No Web3 wallet detected. Please install MetaMask or open in your Web3 browser.");
+  const rawProvider = getInjectedRawProvider(activeWalletType || undefined);
+  if (!rawProvider) {
+    throw new Error("No Web3 wallet detected. Please connect your Web3 wallet or open in your Web3 browser.");
   }
   try {
-    const wasAdded = await (window as any).ethereum.request({
+    const wasAdded = await rawProvider.request({
       method: 'wallet_watchAsset',
       params: {
         type: 'ERC20',

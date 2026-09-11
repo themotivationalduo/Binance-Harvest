@@ -234,11 +234,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setSuccessMessage(null);
 
     if (!user.walletAddress) {
-      const err = "Please connect your MetaMask wallet first.";
+      const err = "Please connect your Web3 wallet first.";
       setErrorMessage(err);
       showFailed({
         initiativeName: 'Treasury Settlement',
-        title: 'MetaMask Wallet Required',
+        title: 'Web3 Wallet Required',
         description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain transaction.',
         actionLabel: 'Connect Web3 Wallet',
       });

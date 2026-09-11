@@ -33,28 +33,47 @@ export function isTelegramMiniApp(): boolean {
 }
 
 /**
- * Returns true if window.ethereum is injected (MetaMask, Trust, OKX, TokenPocket, etc.)
+ * Returns true if any Web3 provider is injected (MetaMask, Trust, OKX, TokenPocket, Binance, SafePal, etc.)
  */
 export function hasInjectedEthereum(): boolean {
   if (typeof window === 'undefined') return false;
-  return Boolean((window as any).ethereum);
+  const w = window as any;
+  return Boolean(
+    w.ethereum ||
+    w.tokenpocket ||
+    w.trustwallet ||
+    w.okxwallet ||
+    w.BinanceChain ||
+    w.bitkeep ||
+    w.safepalProvider ||
+    w.coinbaseWalletExtension ||
+    w.phantom?.ethereum
+  );
 }
 
 /**
- * Get the name of the detected Web3 wallet if available
+ * Get the name of the detected Web3 wallet if available (general for all wallets)
  */
 export function getDetectedWeb3WalletName(): string | null {
   if (typeof window === 'undefined') return null;
-  const eth = (window as any).ethereum;
-  if (!eth) return null;
-  if (eth.isTokenPocket) return 'TokenPocket';
-  if (eth.isMetaMask) return 'MetaMask';
-  if (eth.isTrust || eth.isTrustWallet) return 'Trust Wallet';
-  if (eth.isOkxWallet || eth.isOKExWallet) return 'OKX Wallet';
-  if (eth.isBinance || eth.isBscStorage) return 'Binance Web3 Wallet';
-  if (eth.isCoinbaseWallet) return 'Coinbase Wallet';
-  if (eth.isBitKeep || eth.isBitget) return 'Bitget Wallet';
-  return 'Web3 Injected Wallet';
+  const w = window as any;
+  const eth = w.ethereum;
+
+  // Specific wallet identification (checked prior to isMetaMask to prevent false-positive MetaMask naming)
+  if (w.tokenpocket || eth?.isTokenPocket) return 'TokenPocket';
+  if (w.trustwallet || eth?.isTrust || eth?.isTrustWallet) return 'Trust Wallet';
+  if (w.okxwallet || eth?.isOkxWallet || eth?.isOKExWallet) return 'OKX Wallet';
+  if (w.BinanceChain || eth?.isBinance || eth?.isBscStorage) return 'Binance Web3 Wallet';
+  if (eth?.isRabby) return 'Rabby Wallet';
+  if (eth?.isSafePal || w.safepalProvider) return 'SafePal';
+  if (w.bitkeep || eth?.isBitKeep || eth?.isBitget) return 'Bitget Wallet';
+  if (w.coinbaseWalletExtension || eth?.isCoinbaseWallet) return 'Coinbase Wallet';
+  if (eth?.isRainbow) return 'Rainbow';
+  if (eth?.isBraveWallet) return 'Brave Wallet';
+  if (w.phantom?.ethereum || eth?.isPhantom) return 'Phantom EVM';
+  if (eth?.isMetaMask) return 'MetaMask';
+  if (eth || w.tokenpocket || w.trustwallet || w.okxwallet) return 'Web3 Injected Provider';
+  return null;
 }
 
 /**

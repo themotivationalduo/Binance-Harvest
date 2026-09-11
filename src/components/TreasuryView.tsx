@@ -108,7 +108,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
         showSuccess({
           initiativeName: 'BEP-20 Asset Integration',
           title: 'BHFT Added to Wallet!',
-          badge: 'MetaMask Sync',
+          badge: 'Web3 Wallet Sync',
           description: 'BinanceHarvest (BHFT) token asset was successfully imported into your Web3 wallet.',
           details: [
             { label: 'Token Name', value: BHFT_TOKEN_NAME },
@@ -314,7 +314,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer shadow-lg shadow-amber-500/20"
           >
             <PlusCircle className="w-4 h-4 text-slate-950" />
-            <span>{addingToken ? 'Adding...' : 'Add BHFT to MetaMask'}</span>
+            <span>{addingToken ? 'Adding...' : 'Add BHFT to Web3 Wallet'}</span>
           </motion.button>
         </div>
 
@@ -462,7 +462,7 @@ export const TreasuryView: React.FC<TreasuryViewProps> = ({ user, bnbPrice }) =>
           <div className="bg-slate-950/60 border border-white/10 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
             <div className="font-semibold text-white mb-1">On-Chain Protocol Rules:</div>
             <p>1. Reach the minimum withdrawal threshold ($10.00 USD equivalent in mined points).</p>
-            <p>2. Connect your verified Binance Smart Chain Web3 wallet (MetaMask / Trust Wallet).</p>
+            <p>2. Connect your verified Binance Smart Chain Web3 wallet (Trust / OKX / MetaMask / TokenPocket / etc.).</p>
             <p>3. Broadcast the $5.00 USD verification fee on BSC to the Treasury Wallet.</p>
             <p>4. Your transaction is verified on BscScan and queued for treasury settlement to your wallet.</p>
           </div>

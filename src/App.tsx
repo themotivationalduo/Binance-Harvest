@@ -349,17 +349,18 @@ export default function App() {
               {walletError}
             </p>
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <a
-                href="https://metamask.io/download/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center py-2.5 px-4 bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold text-xs rounded-xl transition"
+              <button
+                onClick={() => {
+                  setWalletError(null);
+                  setShowAuthModal(true);
+                }}
+                className="flex-1 py-2.5 px-4 bg-[#F3BA2F] hover:bg-[#e2ad23] text-black font-bold text-xs rounded-xl transition cursor-pointer"
               >
-                Get MetaMask
-              </a>
+                Connect / Select Wallet
+              </button>
               <button
                 onClick={() => setWalletError(null)}
-                className="flex-1 py-2.5 px-4 bg-white/10 hover:bg-white/15 text-white font-semibold text-xs rounded-xl transition"
+                className="flex-1 py-2.5 px-4 bg-white/10 hover:bg-white/15 text-white font-semibold text-xs rounded-xl transition cursor-pointer"
               >
                 Dismiss
               </button>
