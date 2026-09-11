@@ -8,6 +8,7 @@ import { getUserProfile, updateUserProfileFields, subscribeToUserProfile } from 
 import { useInitiativeFeedback } from './context/InitiativeFeedbackContext';
 import { resolveInitialRoute, VALID_TABS } from './utils/referral';
 import { getStoredTheme, applyTheme } from './utils/theme';
+import { clearTonWalletSession } from './services/tonWallet';
 
 // Dynamic lazy imports for ultra-fast bundle size & instant initial paint
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -179,6 +180,11 @@ export default function App() {
 
   // Sync real wallet balance when wallet address changes
   const syncWalletBalance = async (addr: string) => {
+    const isTon = addr.startsWith('UQ') || addr.startsWith('EQ') || addr.startsWith('kQ') || localStorage.getItem('binance_harvest_wallet_type') === 'TON';
+    if (isTon) {
+      setWalletBalance('TON Miner');
+      return;
+    }
     try {
       const bal = await getRealWalletBalance(addr);
       setWalletBalance(bal);
@@ -190,12 +196,15 @@ export default function App() {
   // Restore saved wallet on mount and listen to provider events
   useEffect(() => {
     const saved = localStorage.getItem('binance_harvest_active_wallet');
+    const isTon = saved && (saved.startsWith('UQ') || saved.startsWith('EQ') || saved.startsWith('kQ') || localStorage.getItem('binance_harvest_wallet_type') === 'TON');
     if (saved) {
       setWalletAddress(saved);
       syncWalletBalance(saved);
-      reconnectExistingWallet().catch((e) => {
-        console.warn("Silent session restoration attempt:", e);
-      });
+      if (!isTon) {
+        reconnectExistingWallet().catch((e) => {
+          console.warn("Silent session restoration attempt:", e);
+        });
+      }
     }
 
     if (typeof window !== 'undefined' && (window as any).ethereum) {
@@ -256,9 +265,11 @@ export default function App() {
     } catch (e) {
       console.warn("Disconnect error:", e);
     }
+    clearTonWalletSession();
     setWalletAddress(null);
     setWalletBalance('0.0000');
     localStorage.removeItem('binance_harvest_active_wallet');
+    localStorage.removeItem('binance_harvest_wallet_type');
     setUser({
       walletAddress: '',
       currentTier: 1,

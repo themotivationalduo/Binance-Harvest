@@ -43,6 +43,22 @@
       },
       "required": ["id", "userAddress", "amountUSD", "type", "txHash"]
     },
+    "UsedTxHash": {
+      "title": "UsedTxHash",
+      "description": "Processed on-chain transaction hashes preventing replay attacks across all payments",
+      "type": "object",
+      "properties": {
+        "txHash": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "type": { "type": "string" },
+        "amountBNB": { "type": "number" },
+        "amountUSD": { "type": "number" },
+        "blockNumber": { "type": "number" },
+        "confirmations": { "type": "number" },
+        "confirmedAt": { "type": "string" }
+      },
+      "required": ["txHash", "walletAddress", "type", "confirmedAt"]
+    },
     "ReferralActivityEvent": {
       "title": "ReferralActivityEvent",
       "description": "Email-like notification log for referral registrations and hash speed boosts",
@@ -71,6 +87,10 @@
     "/transactions/{transactionId}": {
       "schema": "TransactionRecord",
       "description": "Stores transaction receipts with BscScan hashes and miner wallet address"
+    },
+    "/usedTxHashes/{txHash}": {
+      "schema": "UsedTxHash",
+      "description": "Stores processed transaction hashes preventing replay attacks across all payments"
     },
     "/referralEvents/{eventId}": {
       "schema": "ReferralActivityEvent",

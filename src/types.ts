@@ -15,6 +15,7 @@ export interface UserProfile {
   createdAt: string;
   lastActiveTimestamp?: string;
   email?: string;
+  walletType?: 'EVM' | 'TON';
   // Referral Program Fields
   referredBy?: string; // Referrer's BNB wallet address
   referralCount?: number; // Total number of friends invited

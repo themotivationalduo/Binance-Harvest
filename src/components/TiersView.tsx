@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { sendPushNotification } from '../services/notifications';
 import { parseWeb3Error } from '../utils/errorParser';
+import { BscTreasuryPaymentModal } from './BscTreasuryPaymentModal';
 
 interface TiersViewProps {
   user: UserProfile;
@@ -18,7 +19,13 @@ interface TiersViewProps {
 export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUser }) => {
   const [upgradingTier, setUpgradingTier] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showTreasuryModal, setShowTreasuryModal] = useState(false);
+  const [treasuryTargetTier, setTreasuryTargetTier] = useState<number>(user.currentTier + 1);
   const { showSuccess, showFailed } = useInitiativeFeedback();
+
+  const isTonWallet = user.walletType === 'TON' || 
+    (typeof window !== 'undefined' && localStorage.getItem('binance_harvest_wallet_type') === 'TON') ||
+    Boolean(user.walletAddress && (user.walletAddress.startsWith('UQ') || user.walletAddress.startsWith('EQ') || user.walletAddress.startsWith('kQ')));
 
   const handleUpgrade = async (targetTier: number) => {
     setMessage(null);
@@ -43,99 +50,20 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
     }
 
     if (!user.walletAddress) {
-      const err = 'Please connect your MetaMask wallet first.';
+      const err = 'Please connect your wallet first.';
       setMessage({ type: 'error', text: err });
       showFailed({
         initiativeName: 'Tier Upgrade Protocol',
-        title: 'MetaMask Wallet Required',
-        description: 'You must connect your Binance Smart Chain Web3 wallet before initiating an on-chain upgrade transaction.',
+        title: 'Wallet Connection Required',
+        description: 'You must connect your Web3 or TON wallet before initiating an upgrade transaction.',
         actionLabel: 'Connect Wallet',
       });
       return;
     }
 
-    const costUSD = targetTierInfo.upgradeCostUSD;
-
-    try {
-      setUpgradingTier(targetTier);
-      let signer: ethers.Signer | null = null;
-      try {
-        signer = await getOrInitSigner();
-      } catch (e) {
-        console.warn("Could not get signer, using verified transaction mode:", e);
-      }
-
-      // Dynamic USD upgrade fee sent to Treasury Wallet
-      const { txHash } = await sendBNBTransaction(signer, costUSD, bnbPrice);
-      const bnbAmount = Number((costUSD / (bnbPrice || 600)).toFixed(5));
-
-      // Record transaction in audit history
-      await addTransactionRecord(user.email || user.walletAddress, {
-        type: 'UPGRADE',
-        amountBNB: bnbAmount,
-        amountUSD: costUSD,
-        txHash: txHash,
-        status: 'SUCCESS',
-      });
-
-      // Success -> Increment tier
-      await onUpdateUser({
-        currentTier: targetTier,
-      });
-
-      sendPushNotification("Mining Rig Upgraded! 🚀", {
-        body: `Congratulations! Your cloud miner upgraded to ${targetTierInfo?.name || `Tier ${targetTier}`}. Your daily points are now doubled!`,
-      });
-
-      const succ = `Successfully upgraded to Tier ${targetTier}! TxHash: ${txHash.substring(0, 10)}...`;
-      setMessage({
-        type: 'success',
-        text: succ,
-      });
-      setUpgradingTier(null);
-
-      // Trigger glorious Success Animation
-      showSuccess({
-        initiativeName: 'Mining Rig Activation',
-        title: `Tier ${targetTier} Activated!`,
-        badge: `Tier ${targetTier}`,
-        description: `Congratulations! Your cloud mining power has doubled. Your daily yield is now ${(targetTierInfo?.bhftPerDay || 0).toFixed(2)} BHFT per day!`,
-        txHash: txHash,
-        details: [
-          { label: 'Upgraded Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
-          { label: 'Upgrade Cost', value: `$${costUSD.toFixed(2)} USD (${bnbAmount} BNB)` },
-          { label: 'New Daily Yield', value: `${(targetTierInfo?.bhftPerDay || 0).toFixed(2)} BHFT/day` },
-          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-        ],
-      });
-    } catch (err: any) {
-      console.error("Upgrade error:", err);
-      const parsed = parseWeb3Error(err);
-      setMessage({
-        type: 'error',
-        text: parsed.message,
-      });
-      setUpgradingTier(null);
-
-      // Trigger Failed Animation
-      showFailed({
-        initiativeName: 'Tier Upgrade Protocol',
-        title: parsed.title,
-        badge: 'Upgrade Failed',
-        description: parsed.message,
-        requirements: parsed.requirements,
-        rawDetails: parsed.rawDetails,
-        actionLabel: parsed.actionLabel,
-        onAction: parsed.suggestedAction === 'switch_network' ? async () => {
-          await switchToBSC();
-        } : () => handleUpgrade(targetTier),
-        details: [
-          { label: 'Target Rig', value: targetTierInfo?.name || `Tier ${targetTier}` },
-          { label: 'Required Fee', value: `$${costUSD.toFixed(2)} USD (${(costUSD / bnbPrice).toFixed(5)} BNB)` },
-          { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
-        ],
-      });
-    }
+    // Launch Dual-Flow Web3 Checkout Modal (adapts automatically to Telegram Mini App vs Native Web3 DApp browser)
+    setTreasuryTargetTier(targetTier);
+    setShowTreasuryModal(true);
   };
 
   return (
@@ -241,25 +169,38 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
                     <span>Unlocked</span>
                   </div>
                 ) : isNext ? (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => handleUpgrade(t.tier)}
-                    disabled={upgradingTier !== null}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition disabled:opacity-50 cursor-pointer"
-                  >
-                    {upgradingTier === t.tier ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>Signing on BSC ({costInBNB.toFixed(5)} BNB)...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Upgrade Now ({costInBNB.toFixed(5)} BNB)</span>
-                        <ArrowUpRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </motion.button>
+                  <div className="space-y-2">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => handleUpgrade(t.tier)}
+                      disabled={upgradingTier !== null}
+                      className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {upgradingTier === t.tier ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                          <span>Signing on BSC ({costInBNB.toFixed(5)} BNB)...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Upgrade Now ({costInBNB.toFixed(5)} BNB)</span>
+                          <ArrowUpRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </motion.button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTreasuryTargetTier(t.tier);
+                        setShowTreasuryModal(true);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-amber-300 font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <span>Pay via BSC Treasury (QR & TxID)</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="w-full py-3 rounded-2xl bg-slate-800/50 border border-white/5 text-slate-500 font-medium text-center text-sm">
                     Upgrade previous tier first
@@ -270,6 +211,50 @@ export const TiersView: React.FC<TiersViewProps> = ({ user, bnbPrice, onUpdateUs
           );
         })}
       </div>
+
+      {/* BSC Treasury Payment Modal with Backend RPC Confirmation & Replay Protection */}
+      <BscTreasuryPaymentModal
+        isOpen={showTreasuryModal}
+        onClose={() => setShowTreasuryModal(false)}
+        paymentType="UPGRADE"
+        targetTier={treasuryTargetTier}
+        costUSD={ALL_TIERS.find((t) => t.tier === treasuryTargetTier)?.upgradeCostUSD || 10}
+        bnbPrice={bnbPrice}
+        userAddress={user.walletAddress}
+        isTonWallet={isTonWallet}
+        onSuccess={async (result) => {
+          setShowTreasuryModal(false);
+          await addTransactionRecord(user.email || user.walletAddress, {
+            type: 'UPGRADE',
+            amountBNB: result.amountBNB,
+            amountUSD: result.amountUSD,
+            txHash: result.txHash,
+            status: 'SUCCESS',
+          });
+
+          await onUpdateUser({
+            currentTier: treasuryTargetTier,
+          });
+
+          sendPushNotification("Mining Rig Upgraded! 🚀", {
+            body: `Congratulations! Your cloud miner upgraded to Tier ${treasuryTargetTier}. Your daily points are now doubled!`,
+          });
+
+          showSuccess({
+            initiativeName: 'Mining Rig Activation',
+            title: `Tier ${treasuryTargetTier} Activated!`,
+            badge: `Tier ${treasuryTargetTier}`,
+            description: `Congratulations! Your cloud mining power has doubled. Your payment was verified on BSC with ${result.confirmations} block confirmations.`,
+            txHash: result.txHash,
+            details: [
+              { label: 'Upgraded Rig', value: `Tier ${treasuryTargetTier}` },
+              { label: 'Upgrade Cost', value: `$${result.amountUSD.toFixed(2)} USD (${result.amountBNB} BNB)` },
+              { label: 'Network', value: 'Binance Smart Chain (BEP-20)' },
+              { label: 'Block Confirmations', value: `${result.confirmations} Blocks Verified` },
+            ],
+          });
+        }}
+      />
 
     </div>
   );

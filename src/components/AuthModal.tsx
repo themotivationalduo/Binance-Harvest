@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useInitiativeFeedback } from '../context/InitiativeFeedbackContext';
 import { AppLogo } from './AppLogo';
 import { SUPPORTED_DEEP_LINK_WALLETS, openDAppInWallet, WalletDeepLinkInfo } from '../utils/walletDeepLinks';
+import { getTonConnectUI, isTelegramWebApp, getTelegramUser, isValidTonAddress, setConnectedTonAddress } from '../services/tonWallet';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -52,12 +53,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [walletSearch, setWalletSearch] = useState('');
   const [launchingWallet, setLaunchingWallet] = useState<string | null>(null);
   const [cacheResetDone, setCacheResetDone] = useState(false);
+  const [showTonManualInput, setShowTonManualInput] = useState(false);
+  const [tonInputAddress, setTonInputAddress] = useState('');
+  const [isTelegramEnv, setIsTelegramEnv] = useState(false);
 
   const { showSuccess, showFailed } = useInitiativeFeedback();
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      setIsTelegramEnv(isTelegramWebApp());
       setDetectedProviders(detectWeb3Providers());
       // Auto-load initial or cached referral code
       const cachedRef = typeof window !== 'undefined' ? localStorage.getItem('binance_harvest_pending_ref') : null;
@@ -194,6 +199,91 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         actionLabel: isNotFound ? 'Use WalletConnect' : 'Retry Connect',
         onAction: isNotFound ? () => handleAuthenticateWeb3('walletconnect') : () => handleAuthenticateWeb3(walletType),
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuthenticateTon = async (targetAddress: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const cleanTon = targetAddress.trim();
+
+      if (!isValidTonAddress(cleanTon)) {
+        throw new Error("Invalid TON wallet address format. Standard user-friendly addresses start with UQ or EQ (48 characters).");
+      }
+
+      setConnectedTonAddress(cleanTon);
+
+      // Fetch or initialize profile in Firestore keyed by TON wallet address
+      let profile = await getUserProfile(cleanTon);
+      profile.walletAddress = cleanTon;
+      profile.walletType = 'TON';
+      await saveUserProfile(cleanTon, profile);
+
+      // Handle optional referral
+      let referralBoostApplied = false;
+      const refCode = (referralInput.trim() || initialReferralCode || localStorage.getItem('binance_harvest_pending_ref') || '').trim();
+      if (refCode && !profile.referredBy) {
+        try {
+          const refRes = await applyReferralCode(cleanTon, refCode);
+          if (refRes.success && refRes.updatedProfile) {
+            profile = refRes.updatedProfile;
+            profile.walletType = 'TON';
+            referralBoostApplied = true;
+            localStorage.removeItem('binance_harvest_pending_ref');
+          }
+        } catch (refErr) {
+          console.warn("Could not apply referral:", refErr);
+        }
+      }
+
+      localStorage.setItem('binance_harvest_active_wallet', cleanTon);
+      localStorage.setItem('binance_harvest_wallet_type', 'TON');
+
+      onLoginSuccess(profile);
+      onClose();
+
+      showSuccess({
+        initiativeName: 'Telegram TON Authentication',
+        title: referralBoostApplied ? 'TON Miner Connected & +5% Boost!' : 'Telegram TON Miner Connected!',
+        badge: 'TON NETWORK',
+        description: `Successfully authenticated on-chain identity for ${cleanTon.substring(0, 6)}...${cleanTon.substring(cleanTon.length - 4)}. Your cloud hashpower and balance records are loaded.`,
+        details: [
+          { label: 'Miner Identity', value: `${cleanTon.substring(0, 8)}...${cleanTon.substring(cleanTon.length - 6)}` },
+          { label: 'Network', value: 'The Open Network (TON)' },
+          { label: 'Settlement Pool', value: 'Binance Smart Chain (BEP-20)' },
+          { label: 'Mining Tier', value: `Tier ${profile.currentTier}` },
+        ],
+      });
+    } catch (err: any) {
+      console.error("TON auth error:", err);
+      setError(err.message || "Failed to authenticate TON wallet.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnectTonModal = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const tc = getTonConnectUI();
+
+      // Listen for wallet connected callback
+      const unsubscribe = tc.onStatusChange(async (wallet) => {
+        if (wallet && wallet.account) {
+          unsubscribe();
+          const address = wallet.account.address;
+          await handleAuthenticateTon(address);
+        }
+      });
+
+      await tc.openModal();
+    } catch (err) {
+      console.warn("TonConnect UI open modal notice, switching to direct address input:", err);
+      setShowTonManualInput(true);
     } finally {
       setLoading(false);
     }
@@ -344,6 +434,84 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Primary Connection Methods */}
           <div className="flex flex-col gap-2.5 pt-1">
+
+            {/* Telegram TON Wallet Connection Button */}
+            <div className="rounded-2xl p-0.5 bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 shadow-lg shadow-sky-500/20">
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleConnectTonModal}
+                disabled={loading}
+                className="w-full py-3 px-4 rounded-[14px] bg-[#0c192c] hover:bg-[#0f213a] text-white font-bold text-sm transition flex items-center justify-between cursor-pointer disabled:opacity-50"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-sky-500 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-sky-500/40">
+                    💎
+                  </div>
+                  <div className="text-left">
+                    <span className="block leading-tight text-white flex items-center gap-1.5">
+                      Telegram TON Wallet
+                      {isTelegramEnv && (
+                        <span className="text-[9px] px-1.5 py-0.2 bg-sky-400/20 text-sky-300 rounded font-semibold border border-sky-400/30">
+                          TG Mini App
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[10px] text-sky-300 font-normal">
+                      Tonkeeper / @wallet / TonConnect
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-bold border border-sky-500/30">
+                  CONNECT TON
+                </span>
+              </motion.button>
+            </div>
+
+            {/* Optional Manual TON Address Input Trigger */}
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={() => setShowTonManualInput(!showTonManualInput)}
+                className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition cursor-pointer"
+              >
+                <span>{showTonManualInput ? 'Hide TON address input' : 'Paste TON address directly'}</span>
+                {showTonManualInput ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+
+            {showTonManualInput && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="p-3 rounded-2xl bg-sky-950/40 border border-sky-500/30 space-y-2"
+              >
+                <label className="text-[11px] text-sky-200 block font-medium">
+                  Enter TON Wallet Address (UQ... / EQ...)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tonInputAddress}
+                    onChange={(e) => setTonInputAddress(e.target.value)}
+                    placeholder="UQ... or EQ... (48 characters)"
+                    className="flex-1 px-3 py-2 bg-black/50 border border-sky-500/30 rounded-xl text-xs text-white placeholder-sky-200/40 font-mono focus:outline-none focus:border-sky-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={loading || !tonInputAddress.trim()}
+                    onClick={() => handleAuthenticateTon(tonInputAddress)}
+                    className="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs disabled:opacity-40 transition cursor-pointer"
+                  >
+                    Connect
+                  </button>
+                </div>
+                <p className="text-[10px] text-sky-300/70">
+                  Enables instant Telegram bot miner profile with cross-chain BNB Treasury settlement.
+                </p>
+              </motion.div>
+            )}
             
             {/* If In-App Web3 Provider is Detected (TokenPocket, Trust, OKX, MetaMask, etc.) */}
             {detectedProviders.hasWeb3 && (
